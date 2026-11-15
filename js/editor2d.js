@@ -16,6 +16,7 @@ export class Editor2D {
     this.hover = null;    // hole under the cursor
     this.pending = null;  // first hole of a two-pin part being placed
     this.drag = null;
+    this.pointers = new Map(); // active touches, for pinch zoom
 
     svg.addEventListener('pointerdown', e => this.onDown(e));
     svg.addEventListener('pointermove', e => this.onMove(e));
@@ -43,6 +44,11 @@ export class Editor2D {
     const v = this.vb, w = Math.max(6, Math.min(v.w * factor, 400)), f = w / v.w;
     this.vb = { x: cx - (cx - v.x) * f, y: cy - (cy - v.y) * f, w, h: v.h * f };
     this.applyView();
+  }
+
+  // Keeps receiving this pointer's events even if it leaves the SVG.
+  capture(e) {
+    try { this.svg.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
   }
 
   point(e) {
@@ -102,7 +108,7 @@ export class Editor2D {
       const x = Math.min(...xs) - pad, y = Math.min(...ys) - pad;
       s += `<rect x="${x}" y="${y}" width="${Math.max(...xs) + pad - x}" height="${Math.max(...ys) + pad - y}" rx=".3" fill="none" stroke="#4fc3f7" stroke-width=".08" stroke-dasharray=".3 .2" pointer-events="none"/>`;
       if (TWO_PIN.has(getDef(part.type).kind)) {
-        s += part.pins.map(([c, py], i) => `<circle class="handle" data-handle="${i}" cx="${c}" cy="${py}" r=".36" fill="#4fc3f7" stroke="#fff" stroke-width=".08"/>`).join('');
+        s += part.pins.map(([c, py], i) => `<circle class="handle" data-handle="${i}" cx="${c}" cy="${py}" r=".45" fill="#4fc3f7" stroke="#fff" stroke-width=".08"/>`).join('');
       }
     }
     this.lOver.innerHTML = s;
@@ -111,14 +117,31 @@ export class Editor2D {
 
   startPan(e) {
     this.drag = { type: 'pan', x: e.clientX, y: e.clientY };
-    this.svg.setPointerCapture(e.pointerId);
+    this.capture(e);
+  }
+
+  pinchState() {
+    const [a, b] = [...this.pointers.values()];
+    return { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+
+  // A second finger turns whatever was happening into a pinch zoom / two-finger pan.
+  startPinch() {
+    if (this.drag?.changed) this.app.commit();
+    this.pending = null;
+    this.hover = null;
+    this.drag = { type: 'pinch', ...this.pinchState() };
+    this.renderOverlay();
   }
 
   onDown(e) {
     const { app } = this;
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pointers.size === 2) { this.capture(e); return this.startPinch(); }
+    if (this.pointers.size > 2) return;
     if (e.button !== 0) return this.startPan(e);
     const p = this.point(e), hole = this.holeAt(p), def = getDef(app.tool);
-    this.svg.setPointerCapture(e.pointerId);
+    this.capture(e);
 
     if (def) {
       if (TWO_PIN.has(def.kind)) {
@@ -126,9 +149,10 @@ export class Editor2D {
         if (this.pending && key(...this.pending) !== key(...hole)) return this.placeTwoPin(def, hole);
         this.pending = hole;
         this.drag = { type: 'draw' };
-      } else if (hole) {
-        const pins = footprint(def, hole[0], hole[1]);
-        if (pinsValid(this.board, pins, takenHoles(this.board))) app.addPart(def.type, pins);
+      } else {
+        // Fixed footprints are placed on release, so a finger can drag the preview into position.
+        this.hover = hole;
+        this.drag = { type: 'stamp' };
       }
       return this.renderOverlay();
     }
@@ -161,7 +185,20 @@ export class Editor2D {
   }
 
   onMove(e) {
-    const p = this.point(e), d = this.drag;
+    if (this.pointers.has(e.pointerId)) this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const d = this.drag;
+    if (d?.type === 'pinch') {
+      if (this.pointers.size < 2) return;
+      const now = this.pinchState(), before = this.point({ clientX: d.x, clientY: d.y });
+      this.zoom(d.dist / now.dist, before.x, before.y);
+      const scale = 1 / (this.svg.getScreenCTM()?.a || 1);
+      this.vb.x -= (now.x - d.x) * scale;
+      this.vb.y -= (now.y - d.y) * scale;
+      Object.assign(d, now);
+      return this.applyView();
+    }
+    if (d?.type === 'idle') return;
+    const p = this.point(e);
     if (d?.type === 'pan') {
       const scale = 1 / (this.svg.getScreenCTM()?.a || 1);
       this.vb.x -= (e.clientX - d.x) * scale;
@@ -198,14 +235,28 @@ export class Editor2D {
 
   onUp(e) {
     const d = this.drag;
-    this.drag = null;
+    this.pointers.delete(e.pointerId);
     if (this.svg.hasPointerCapture(e.pointerId)) this.svg.releasePointerCapture(e.pointerId);
+    if (d?.type === 'pinch' || d?.type === 'idle') {
+      // Ignore the finger left on screen after a pinch until it is lifted too.
+      this.drag = this.pointers.size ? { type: 'idle' } : null;
+      return;
+    }
+    this.drag = null;
     if (!d) return;
-    if (d.type === 'draw') {
+    if (d.type === 'stamp') {
+      const hole = this.holeAt(this.point(e)), def = getDef(this.app.tool);
+      const pins = def && hole && e.type === 'pointerup' && footprint(def, hole[0], hole[1]);
+      if (pins && pinsValid(this.board, pins, takenHoles(this.board))) this.app.addPart(def.type, pins);
+    } else if (d.type === 'draw') {
       // Dragging from one hole to another places the part; a plain click waits for a second click.
       const hole = this.holeAt(this.point(e)), def = getDef(this.app.tool);
       if (def && this.pending && hole && key(...hole) !== key(...this.pending)) this.placeTwoPin(def, hole);
     } else if (d.changed) this.app.commit();
+    if (e.pointerType !== 'mouse') {   // no hover on touch screens: clear the preview
+      this.hover = null;
+      this.renderOverlay();
+    }
   }
 
   onWheel(e) {

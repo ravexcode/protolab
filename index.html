@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1c2027">
   <title>ProtoLab · Editor de protoboards 2D y 3D</title>
   <meta name="description" content="Diseña protoboards en 2D, míralas en 3D y guárdalas en tu navegador.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23f4f1e8'/%3E%3Cg fill='%231b1b1d'%3E%3Crect x='3' y='3' width='2' height='2'/%3E%3Crect x='7' y='3' width='2' height='2'/%3E%3Crect x='11' y='3' width='2' height='2'/%3E%3Crect x='3' y='11' width='2' height='2'/%3E%3Crect x='7' y='11' width='2' height='2'/%3E%3Crect x='11' y='11' width='2' height='2'/%3E%3C/g%3E%3Crect x='2' y='7' width='12' height='2' fill='%23e53935'/%3E%3C/svg%3E">
@@ -90,6 +91,13 @@
       </section>
     </aside>
   </main>
+
+  <nav id="mobileBar">
+    <button data-drawer="left">Componentes</button>
+    <button data-tool="select">Seleccionar</button>
+    <button data-tool="erase">Borrar</button>
+    <button data-drawer="right" id="mEdit">Ajustes</button>
+  </nav>
 
   <footer id="status">
     <span id="stTool"></span>

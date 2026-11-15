@@ -68,7 +68,7 @@ function loadStore() {
     }
   } catch { /* corrupt or unavailable storage: start fresh */ }
   const board = demoBoard();
-  return { boards: [board], current: board, view: 'split' };
+  return { boards: [board], current: board, view: matchMedia('(max-width: 900px)').matches ? '2d' : 'split' };
 }
 
 function save() {
@@ -265,10 +265,19 @@ function renderPalette(filter = '') {
   $('palette').innerHTML = html || '<p class="hint">Sin resultados.</p>';
 }
 
-$('left').onclick = e => {
-  const b = e.target.closest('[data-tool]');
-  if (b) setTool(b.dataset.tool);
-};
+// Bottom sheets used on small screens ('left' = components, 'right' = settings).
+function setDrawer(name) {
+  if (name) document.body.dataset.drawer = name;
+  else delete document.body.dataset.drawer;
+  for (const b of document.querySelectorAll('[data-drawer]')) b.classList.toggle('open', b.dataset.drawer === name);
+}
+
+document.addEventListener('click', e => {
+  const tool = e.target.closest('[data-tool]'), drawer = e.target.closest('button[data-drawer]');
+  if (tool) { setTool(tool.dataset.tool); setDrawer(null); }
+  else if (drawer) setDrawer(document.body.dataset.drawer === drawer.dataset.drawer ? null : drawer.dataset.drawer);
+});
+$('stage').addEventListener('pointerdown', () => setDrawer(null));
 $('search').oninput = e => renderPalette(e.target.value);
 
 // ---------- board form ----------
@@ -328,6 +337,8 @@ $('fColor').onclick = e => {
 function renderProps() {
   const part = app.board.parts.find(p => p.id === app.selected);
   $('props').hidden = !part;
+  $('mEdit').textContent = part ? 'Editar' : 'Ajustes';
+  $('mEdit').classList.toggle('active', !!part);
   if (!part) return;
   const def = getDef(part.type), props = { ...def.props, ...part.props };
   const where = TWO_PIN.has(def.kind)
@@ -360,7 +371,7 @@ $('propsBody').addEventListener('change', e => {
   if (e.target.dataset.key || e.target.type === 'color') commit();
 });
 $('propsBody').addEventListener('click', e => {
-  if (e.target.id === 'bRemove') return app.removePart(app.selected);
+  if (e.target.id === 'bRemove') { setDrawer(null); return app.removePart(app.selected); }
   const c = e.target.dataset.color;
   if (c) setProp(e.target.parentElement.dataset.key, c, true);
 });

@@ -12,6 +12,7 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
+body { height: 100dvh; }
 body {
   display: flex; flex-direction: column;
   background: var(--bg); color: var(--text);
@@ -102,11 +103,50 @@ label input, label select { display: block; width: 100%; margin-top: 3px; color:
 #msg3d { position: absolute; inset: 0; margin: auto; height: fit-content; text-align: center; color: var(--muted); padding: 20px; }
 .zoom { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 4px; }
 
+#mobileBar { display: none; }
+
+/* Phones and small tablets: side panels become bottom sheets opened from a tab bar. */
 @media (max-width: 900px) {
-  body { overflow: auto; }
-  main { flex-direction: column; min-height: auto; }
-  #left, #right { width: auto; border: 0; max-height: 240px; }
-  #stage { flex-direction: column; min-height: 70vh; }
+  button, select, input { padding: 8px 10px; }
+  input, select { font-size: 16px; }   /* stops iOS zooming into focused fields */
+  #top { padding: 6px max(8px, env(safe-area-inset-left)); gap: 5px; scrollbar-width: none; }
+  #top::-webkit-scrollbar { display: none; }
+  #top > * { flex: none; }
+  .brand, #saved { display: none; }
+  #boardSel { max-width: 130px; }
+
+  #stage { flex-direction: column; }
   #pane3d { border-left: 0; border-top: 1px solid var(--line); }
-  #status .hint { display: none; }
+  .zoom button { min-width: 40px; }
+
+  #left, #right {
+    position: fixed; left: 0; right: 0; z-index: 20; width: auto;
+    bottom: calc(50px + env(safe-area-inset-bottom));
+    height: 62dvh; border: 0; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, .5);
+    transform: translateY(105%); visibility: hidden;
+    transition: transform .2s ease, visibility .2s;
+  }
+  body[data-drawer="left"] #left, body[data-drawer="right"] #right { transform: none; visibility: visible; }
+  #left .tools { display: none; }
+  #right { display: flex; flex-direction: column; }
+  #right section { flex: none; }
+  #props { order: -1; }
+  .item { padding: 8px; }
+  .swatches button { width: 30px; height: 30px; }
+
+  #status { padding: 4px 10px; gap: 8px; }
+  #status .hint, #status .grow { display: none; }
+  #stTool { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #stHole { min-width: 0; white-space: nowrap; }
+
+  #mobileBar {
+    order: 1; flex: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+    padding: 6px max(8px, env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom));
+    background: var(--panel); border-top: 1px solid var(--line); position: relative; z-index: 21;
+  }
+  #mobileBar button { padding: 9px 2px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+  #mobileBar button.open { border-color: var(--accent); color: var(--accent); }
 }
+
+@media (prefers-reduced-motion: reduce) { #left, #right { transition: none; } }
