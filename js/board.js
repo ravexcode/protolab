@@ -59,6 +59,22 @@ export function holeName(c, y) {
   return LETTERS[TERMINAL_Y.indexOf(y)] + (c + 1);
 }
 
+const RAIL_NAMES = { 0: 'T+', 1: 'T-', 16: 'B+', 17: 'B-' };
+
+// Short hole ids used by the AI tools: "a1".."j30", "T+3", "B-12".
+export function holeId([c, y]) {
+  return (RAIL_NAMES[y] ?? LETTERS[TERMINAL_Y.indexOf(y)] ?? '?') + (c + 1);
+}
+
+export function parseHole(name) {
+  const s = String(name ?? '').trim();
+  let m = /^([a-j])(\d{1,3})$/i.exec(s);
+  if (m) return [m[2] - 1, TERMINAL_Y[LETTERS.indexOf(m[1].toLowerCase())]];
+  m = /^([tb])([+\-−])(\d{1,3})$/i.exec(s);
+  if (m) return [m[3] - 1, (m[1].toLowerCase() === 't' ? 0 : 16) + (m[2] === '+' ? 0 : 1)];
+  throw new Error(`Invalid hole "${s}". Use names like "a5", "j12", "T+3" or "B-7".`);
+}
+
 // The strip of holes electrically joined to [c, y], as a rectangle.
 export function stripRect(board, c, y) {
   if (isRailY(y)) return { x: -0.4, y: y - 0.38, w: board.cols - 0.2, h: 0.76 };

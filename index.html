@@ -34,6 +34,7 @@
     </div>
     <span class="grow"></span>
     <span id="saved" title="Guardado en este navegador">Guardado</span>
+    <button id="bAI" class="pcOnly" title="Conectar un agente de IA de este PC"><i class="dot" data-state="off"></i>IA</button>
     <button id="bExport" title="Descargar como JSON">Exportar</button>
     <button id="bImport" title="Cargar un JSON">Importar</button>
     <input type="file" id="fileIn" accept=".json,application/json" hidden>
@@ -105,6 +106,45 @@
     <span class="grow"></span>
     <span class="hint">Rueda: zoom · Arrastrar fondo: mover vista · Supr: borrar · Esc: cancelar</span>
   </footer>
+
+  <dialog id="aiDlg">
+    <form method="dialog" class="dlgHead">
+      <h2>Conectar IA</h2>
+      <button aria-label="Cerrar">✕</button>
+    </form>
+    <p>Da acceso a un agente de IA instalado en este PC (Claude Code, Codex, OpenCode o cualquier cliente MCP) para que lea y edite tus protoboards mientras las ves.</p>
+    <div class="aiStatus">
+      <i class="dot" id="aiDot" data-state="off"></i>
+      <span id="aiState"></span>
+      <span class="grow"></span>
+      <label>Puerto <input id="aiPort" type="number" min="1024" max="65535"></label>
+      <button id="aiToggle"></button>
+    </div>
+    <ol class="steps">
+      <li>
+        <b>Inicia el puente</b> en una terminal y déjala abierta. Necesita Node.js 18 o superior.
+        <div class="cmd"><pre id="cmdBridge"></pre><button data-copy="cmdBridge">Copiar</button></div>
+      </li>
+      <li>
+        <b>Da acceso a tu agente.</b> Solo hace falta una vez.
+        <div class="seg" id="aiTabs">
+          <button data-agent="claude">Claude Code</button>
+          <button data-agent="codex">Codex</button>
+          <button data-agent="opencode">OpenCode</button>
+          <button data-agent="other">Otro</button>
+        </div>
+        <div class="cmd"><pre id="cmdAgent"></pre><button data-copy="cmdAgent">Copiar</button></div>
+        <p class="hint" id="agentNote"></p>
+      </li>
+      <li>
+        <b>Pulsa Conectar</b> y pídele algo a tu agente. Por ejemplo:
+        <q>Monta en ProtoLab un LED rojo con una resistencia de 220 Ω entre los rieles de alimentación.</q>
+      </li>
+    </ol>
+    <h3>Actividad</h3>
+    <ul id="aiLog"></ul>
+    <p class="hint">El puente solo escucha en 127.0.0.1 y solo acepta esta página. Mientras esté conectado, el agente puede leer y modificar tus protoboards; cada cambio se deshace con Ctrl+Z. Si el navegador pide permiso para acceder a la red local, acéptalo.</p>
+  </dialog>
 
   <script type="module" src="js/app.js"></script>
 </body>

@@ -103,6 +103,43 @@ label input, label select { display: block; width: 100%; margin-top: 3px; color:
 #msg3d { position: absolute; inset: 0; margin: auto; height: fit-content; text-align: center; color: var(--muted); padding: 20px; }
 .zoom { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 4px; }
 
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; flex: none; }
+.dot[data-state="on"] { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
+.dot[data-state="waiting"] { background: #ffb300; animation: pulse 1s ease-in-out infinite alternate; }
+@keyframes pulse { to { opacity: .3; } }
+
+dialog {
+  width: min(640px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow-y: auto;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px;
+}
+dialog::backdrop { background: rgba(0, 0, 0, .6); }
+.dlgHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.dlgHead h2 { margin: 0; font-size: 16px; text-transform: none; letter-spacing: 0; color: var(--text); }
+dialog h3 { margin: 14px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+.aiStatus {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin: 12px 0;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+}
+.aiStatus label { display: flex; align-items: center; gap: 6px; margin: 0; }
+.aiStatus input { width: 76px; margin: 0; }
+.steps { padding-left: 20px; margin: 0; }
+.steps li { margin-bottom: 12px; }
+.steps q { display: block; margin-top: 6px; padding: 8px 10px; border-left: 3px solid var(--accent); background: var(--panel-2); border-radius: 0 6px 6px 0; }
+.steps .seg { margin-top: 8px; }
+.cmd { display: flex; align-items: flex-start; gap: 6px; margin-top: 6px; }
+.cmd pre {
+  flex: 1; min-width: 0; margin: 0; padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: all;
+  background: #0d0f13; border: 1px solid var(--line); border-radius: 6px;
+  font: 12px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+#aiLog { list-style: none; margin: 0; padding: 0; max-height: 130px; overflow-y: auto; font-size: 12px; }
+#aiLog li { display: flex; gap: 8px; padding: 2px 0; }
+#aiLog time { color: var(--muted); flex: none; }
+#aiLog .err { color: var(--danger); }
+
+/* The AI link needs a local program, so it is offered on computers only. */
+@media (max-width: 900px), (hover: none) and (pointer: coarse) { .pcOnly { display: none; } }
+
 #mobileBar { display: none; }
 
 /* Phones and small tablets: side panels become bottom sheets opened from a tab bar. */

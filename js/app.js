@@ -3,6 +3,7 @@ import { CATALOG, getDef, SWATCHES } from './catalog.js';
 import { PRESETS, MIN_COLS, MAX_COLS, BOARD_COLORS, holes, holeName, pinsValid, key } from './board.js';
 import { Editor2D } from './editor2d.js';
 import { iconSVG, esc, safeColor } from './draw2d.js';
+import { initAI } from './ai.js';
 
 const LS_KEY = 'protolab.v1';
 const $ = id => document.getElementById(id);
@@ -411,3 +412,4 @@ setTool('select');
 resetHistory();
 showBoard();
 setView(store.view);
+initAI({ store, app, editor, uid, sanitizeBoard, switchBoard, commit, showBoard });
