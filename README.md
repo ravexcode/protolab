@@ -1,5 +1,7 @@
 # ProtoLab
 
+[![CI/CD](https://github.com/ravexcode/protolab/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/ravexcode/protolab/actions/workflows/ci-cd.yml)
+
 Editor de protoboards en el navegador: diseña en 2D, mira el resultado en 3D y guarda todo localmente.
 
 **Demo:** https://ravexcode.github.io/protolab/
@@ -37,7 +39,7 @@ Un agente de IA instalado en tu ordenador puede leer y editar las protoboards qu
    node /ruta/a/protolab-mcp.mjs --stdio
    ```
 
-3. En la web pulsa **IA → Conectar** y pídele algo al agente, por ejemplo: «Monta en ProtoLab un LED rojo con una resistencia de 220 Ω entre los rieles».
+3. En la web pulsa el botón **MCP** (icono de enchufe) y luego **Conectar**, y pídele algo al agente, por ejemplo: «Monta en ProtoLab un LED rojo con una resistencia de 220 Ω entre los rieles».
 
 El agente dispone de estas herramientas: `list_components`, `list_boards`, `get_board`, `create_board`, `select_board`, `update_board`, `add_parts`, `update_part` y `remove_parts`. Cada cambio se puede deshacer con `Ctrl+Z`.
 
@@ -67,6 +69,14 @@ python3 -m http.server 8000
 
 No hay dependencias que instalar ni paso de compilación. Three.js está incluido en `vendor/`.
 
+## Pruebas y despliegue
+
+```bash
+npm test
+```
+
+Cada push y cada pull request ejecuta las pruebas en Node 18, 20 y 22 con GitHub Actions. Si pasan en `main`, el sitio se publica en GitHub Pages.
+
 ## Estructura
 
 ```
@@ -80,5 +90,19 @@ js/view3d.js      Vista 3D (Three.js)
 js/app.js         Estado, guardado, paneles
 js/ai.js          Enlace con agentes de IA
 bridge/           Puente MCP local (Node.js)
+tests/            Pruebas (node:test)
+.github/          Integración y despliegue continuos
 vendor/           Three.js r160
 ```
+
+## Contribuir
+
+Las contribuciones son bienvenidas: lee [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Gracias a [todas las personas que han contribuido](https://github.com/ravexcode/protolab/graphs/contributors).
+
+## Licencia
+
+[MIT con la condición Commons Clause](LICENSE). Puedes usar, copiar, modificar, hacer forks y redistribuir ProtoLab libremente, también dentro de proyectos comerciales. Lo único que no permite es vender ProtoLab en sí: ofrecer de pago un producto o servicio cuyo valor provenga total o sustancialmente de este software.
+
+Three.js (`vendor/`) conserva su licencia MIT original.

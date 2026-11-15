@@ -103,6 +103,9 @@ label input, label select { display: block; width: 100%; margin-top: 3px; color:
 #msg3d { position: absolute; inset: 0; margin: auto; height: fit-content; text-align: center; color: var(--muted); padding: 20px; }
 .zoom { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 4px; }
 
+.ico { width: 15px; height: 15px; vertical-align: -3px; margin-right: 5px; }
+#bAI { display: inline-flex; align-items: center; }
+#bAI .ico { margin-right: 4px; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; flex: none; }
 .dot[data-state="on"] { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
 .dot[data-state="waiting"] { background: #ffb300; animation: pulse 1s ease-in-out infinite alternate; }
@@ -138,7 +141,7 @@ dialog h3 { margin: 14px 0 6px; font-size: 12px; text-transform: uppercase; lett
 #aiLog .err { color: var(--danger); }
 
 /* The AI link needs a local program, so it is offered on computers only. */
-@media (max-width: 900px), (hover: none) and (pointer: coarse) { .pcOnly { display: none; } }
+@media (max-width: 900px), (hover: none) and (pointer: coarse) { #bAI.pcOnly { display: none; } }
 
 #mobileBar { display: none; }
 

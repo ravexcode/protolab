@@ -11,7 +11,7 @@ const TWO_PIN = new Set(['wire', 'axial', 'radial']);
 const $ = id => document.getElementById(id);
 
 // ---------- tools the agent can call ----------
-function createTools({ store, app, editor, uid, sanitizeBoard, switchBoard, commit, showBoard }) {
+export function createTools({ store, app, editor, uid, sanitizeBoard, switchBoard, commit, showBoard }) {
   const describe = part => {
     const def = getDef(part.type), props = { ...def.props, ...part.props };
     for (const k of Object.keys(props)) if (!(def.fields || []).some(f => f.key === k)) delete props[k];
