@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProtoLab · Editor de protoboards 2D y 3D</title>
+  <meta name="description" content="Diseña protoboards en 2D, míralas en 3D y guárdalas en tu navegador.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23f4f1e8'/%3E%3Cg fill='%231b1b1d'%3E%3Crect x='3' y='3' width='2' height='2'/%3E%3Crect x='7' y='3' width='2' height='2'/%3E%3Crect x='11' y='3' width='2' height='2'/%3E%3Crect x='3' y='11' width='2' height='2'/%3E%3Crect x='7' y='11' width='2' height='2'/%3E%3Crect x='11' y='11' width='2' height='2'/%3E%3C/g%3E%3Crect x='2' y='7' width='12' height='2' fill='%23e53935'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+  { "imports": {
+      "three": "./vendor/three.module.min.js",
+      "three/addons/controls/OrbitControls.js": "./vendor/OrbitControls.js",
+      "three/addons/environments/RoomEnvironment.js": "./vendor/RoomEnvironment.js"
+  } }
+  </script>
+</head>
+<body>
+  <header id="top">
+    <strong class="brand">ProtoLab</strong>
+    <select id="boardSel" title="Protoboard actual"></select>
+    <button id="bNew" title="Nueva protoboard">+ Nueva</button>
+    <button id="bDup">Duplicar</button>
+    <button id="bDel" class="danger">Eliminar</button>
+    <span class="sep"></span>
+    <button id="bUndo" title="Deshacer (Ctrl+Z)">↶</button>
+    <button id="bRedo" title="Rehacer (Ctrl+Y)">↷</button>
+    <span class="sep"></span>
+    <div class="seg" id="viewSeg">
+      <button data-view="2d">2D</button>
+      <button data-view="split">2D + 3D</button>
+      <button data-view="3d">3D</button>
+    </div>
+    <span class="grow"></span>
+    <span id="saved" title="Guardado en este navegador">Guardado</span>
+    <button id="bExport" title="Descargar como JSON">Exportar</button>
+    <button id="bImport" title="Cargar un JSON">Importar</button>
+    <input type="file" id="fileIn" accept=".json,application/json" hidden>
+  </header>
+
+  <main>
+    <aside id="left">
+      <div class="tools">
+        <button data-tool="select" title="Seleccionar y mover (V)">Seleccionar</button>
+        <button data-tool="erase" title="Borrar componentes (E)">Borrar</button>
+      </div>
+      <input id="search" type="search" placeholder="Buscar componente…" autocomplete="off">
+      <div id="palette"></div>
+    </aside>
+
+    <section id="stage" data-view="split">
+      <div id="pane2d">
+        <svg id="svg" font-family="system-ui, sans-serif"></svg>
+        <div class="zoom">
+          <button id="zIn" title="Acercar">+</button>
+          <button id="zOut" title="Alejar">−</button>
+          <button id="zFit" title="Ajustar a la vista">Ajustar</button>
+        </div>
+      </div>
+      <div id="pane3d"><p id="msg3d" hidden></p></div>
+    </section>
+
+    <aside id="right">
+      <section>
+        <h2>Protoboard</h2>
+        <label>Nombre <input id="fName" type="text" maxlength="60"></label>
+        <label>Tamaño
+          <select id="fPreset"></select>
+        </label>
+        <div class="row">
+          <label>Columnas <input id="fCols" type="number"></label>
+          <label>Rieles
+            <select id="fRails">
+              <option value="both">Ambos lados</option>
+              <option value="top">Solo arriba</option>
+              <option value="none">Sin rieles</option>
+            </select>
+          </label>
+        </div>
+        <div class="field">Color <div class="swatches" id="fColor"></div></div>
+        <p class="hint" id="points"></p>
+      </section>
+      <section id="props" hidden>
+        <h2>Componente</h2>
+        <div id="propsBody"></div>
+      </section>
+      <section>
+        <h2>Lista de materiales</h2>
+        <ul id="bom"></ul>
+      </section>
+    </aside>
+  </main>
+
+  <footer id="status">
+    <span id="stTool"></span>
+    <span id="stHole"></span>
+    <span class="grow"></span>
+    <span class="hint">Rueda: zoom · Arrastrar fondo: mover vista · Supr: borrar · Esc: cancelar</span>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
