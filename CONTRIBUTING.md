@@ -36,6 +36,10 @@ Los componentes se definen en `js/catalog.js`. Cada uno tiene un `kind`, que dec
 
 Si un `shape` existente te sirve (por ejemplo `ic`, `to92` o `module`), basta con una línea en el catálogo. Si necesitas una forma nueva, dibújala en `js/draw2d.js` (vista 2D) y en `js/view3d.js` (vista 3D). Las unidades son pasos de 2,54 mm.
 
+## Interfaz
+
+La interfaz sigue un sistema de diseño descrito en [AGENTS.md](AGENTS.md#design-system): colores por tokens, tipografía Barlow, paneles planos y herramientas flotantes. Comprueba cualquier cambio visual a 1440 px y a 390 px, en tema claro y oscuro.
+
 ## Estilo
 
 - JavaScript moderno en módulos ES, sin dependencias ni empaquetador.

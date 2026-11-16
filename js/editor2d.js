@@ -87,7 +87,7 @@ export class Editor2D {
     let hl = '', s = '';
     if (this.hover) {
       const r = stripRect(this.board, ...this.hover);
-      hl = `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx=".3" fill="rgba(79,195,247,.28)"/>`;
+      hl = `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx=".3" fill="rgba(47,128,237,.26)"/>`;
     }
     this.lHl.innerHTML = hl;
 
@@ -99,16 +99,16 @@ export class Editor2D {
         s += `<g opacity=".65" pointer-events="none">${partSVG(def, pins, {})}</g>`;
         s += pins.map(([c, y]) => `<circle cx="${c}" cy="${y}" r=".3" fill="none" stroke="${ok ? '#4caf50' : '#f44336'}" stroke-width=".1"/>`).join('');
       }
-      if (this.pending) s += `<circle cx="${this.pending[0]}" cy="${this.pending[1]}" r=".34" fill="none" stroke="#4fc3f7" stroke-width=".12"/>`;
+      if (this.pending) s += `<circle cx="${this.pending[0]}" cy="${this.pending[1]}" r=".34" fill="none" stroke="#2F80ED" stroke-width=".12"/>`;
     }
 
     const part = this.board.parts.find(q => q.id === selected);
     if (part) {
       const xs = part.pins.map(q => q[0]), ys = part.pins.map(q => q[1]), pad = 0.8;
       const x = Math.min(...xs) - pad, y = Math.min(...ys) - pad;
-      s += `<rect x="${x}" y="${y}" width="${Math.max(...xs) + pad - x}" height="${Math.max(...ys) + pad - y}" rx=".3" fill="none" stroke="#4fc3f7" stroke-width=".08" stroke-dasharray=".3 .2" pointer-events="none"/>`;
+      s += `<rect x="${x}" y="${y}" width="${Math.max(...xs) + pad - x}" height="${Math.max(...ys) + pad - y}" rx=".3" fill="none" stroke="#2F80ED" stroke-width=".08" stroke-dasharray=".3 .2" pointer-events="none"/>`;
       if (TWO_PIN.has(getDef(part.type).kind)) {
-        s += part.pins.map(([c, py], i) => `<circle class="handle" data-handle="${i}" cx="${c}" cy="${py}" r=".45" fill="#4fc3f7" stroke="#fff" stroke-width=".08"/>`).join('');
+        s += part.pins.map(([c, py], i) => `<circle class="handle" data-handle="${i}" cx="${c}" cy="${py}" r=".45" fill="#2F80ED" stroke="#fff" stroke-width=".08"/>`).join('');
       }
     }
     this.lOver.innerHTML = s;

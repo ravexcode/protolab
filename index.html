@@ -3,10 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#1c2027">
-  <title>ProtoLab · Editor de protoboards 2D y 3D</title>
+  <meta name="theme-color" content="#F6F8F5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#161C1A" media="(prefers-color-scheme: dark)">
+  <title>ProtoLab, editor de protoboards 2D y 3D</title>
   <meta name="description" content="Diseña protoboards en 2D, míralas en 3D y guárdalas en tu navegador.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23f4f1e8'/%3E%3Cg fill='%231b1b1d'%3E%3Crect x='3' y='3' width='2' height='2'/%3E%3Crect x='7' y='3' width='2' height='2'/%3E%3Crect x='11' y='3' width='2' height='2'/%3E%3Crect x='3' y='11' width='2' height='2'/%3E%3Crect x='7' y='11' width='2' height='2'/%3E%3Crect x='11' y='11' width='2' height='2'/%3E%3C/g%3E%3Crect x='2' y='7' width='12' height='2' fill='%23e53935'/%3E%3C/svg%3E">
+  <link rel="preload" href="vendor/fonts/barlow-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="vendor/fonts/barlow-semi-condensed-600.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/style.css">
   <script type="importmap">
   { "imports": {
@@ -17,62 +20,129 @@
   </script>
 </head>
 <body>
+  <!-- Icon sprite: 24px grid, drawn with strokes. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-select" viewBox="0 0 24 24"><path d="M5 3l14 8-6 2-2 6z"/></symbol>
+    <symbol id="i-wire" viewBox="0 0 24 24"><path d="M5 18c0-9 14-3 14-12"/><circle cx="5" cy="19" r="1.6"/><circle cx="19" cy="5" r="1.6"/></symbol>
+    <symbol id="i-erase" viewBox="0 0 24 24"><path d="M8 20h12M4.5 13.5l8-8a2 2 0 0 1 3 0l3.5 3.5a2 2 0 0 1 0 3L11 20H8l-3.5-3.5a2 2 0 0 1 0-3zM9 9l6.5 6.5"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0zM12 17v5"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+    <symbol id="i-parts" viewBox="0 0 24 24"><path d="M8 8h8v8H8zM4 10h4M4 14h4M16 10h4M16 14h4M10 4v4M14 4v4M10 16v4M14 16v4"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><path d="M9 9h11v11H9zM5 15V4h11"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></symbol>
+  </svg>
+
+  <a class="skip" href="#stage">Saltar al lienzo</a>
+
   <header id="top">
-    <strong class="brand">ProtoLab</strong>
-    <select id="boardSel" title="Protoboard actual"></select>
-    <button id="bNew" title="Nueva protoboard">+ Nueva</button>
-    <button id="bDup">Duplicar</button>
-    <button id="bDel" class="danger">Eliminar</button>
-    <span class="sep"></span>
-    <button id="bUndo" title="Deshacer (Ctrl+Z)">↶</button>
-    <button id="bRedo" title="Rehacer (Ctrl+Y)">↷</button>
-    <span class="sep"></span>
-    <div class="seg" id="viewSeg">
+    <span class="brand" translate="no">
+      <svg viewBox="0 0 28 20" width="28" height="20" aria-hidden="true">
+        <rect x=".5" y=".5" width="27" height="19" rx="3" fill="#F4F1E8" stroke="#18221F" stroke-opacity=".35"/>
+        <path d="M3 4.5h22" stroke="#D8342B" stroke-width="1.6"/><path d="M3 15.5h22" stroke="#1F6FD6" stroke-width="1.6"/>
+        <g fill="#18221F"><rect x="5" y="8.5" width="3" height="3"/><rect x="12.5" y="8.5" width="3" height="3"/><rect x="20" y="8.5" width="3" height="3"/></g>
+      </svg>
+      <span class="word">ProtoLab</span>
+    </span>
+
+    <div class="doc">
+      <button id="bBoards" class="docBtn" aria-haspopup="true" aria-expanded="false" aria-controls="boardMenu" title="Tus protoboards">
+        <span id="docName"></span><svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg>
+      </button>
+      <div id="boardMenu" class="menu" hidden>
+        <div id="boardList"></div>
+        <hr>
+        <button id="bNew"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg>Nueva protoboard</button>
+        <button id="bDup"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg>Duplicar esta</button>
+        <button id="bExport"><svg class="ico" aria-hidden="true"><use href="#i-download"/></svg>Exportar a JSON</button>
+        <button id="bImport"><svg class="ico" aria-hidden="true"><use href="#i-upload"/></svg>Importar un JSON…</button>
+        <hr>
+        <button id="bDel" class="danger"><svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg>Eliminar esta protoboard…</button>
+      </div>
+      <input type="file" id="fileIn" accept=".json,application/json" hidden>
+    </div>
+
+    <span class="grow"></span>
+    <div class="seg" id="viewSeg" role="group" aria-label="Vista">
       <button data-view="2d">2D</button>
-      <button data-view="split">2D + 3D</button>
+      <button data-view="split">Ambas</button>
       <button data-view="3d">3D</button>
     </div>
     <span class="grow"></span>
-    <span id="saved" title="Guardado en este navegador">Guardado</span>
-    <button id="bAI" class="pcOnly" title="Conectar un agente de IA por MCP" aria-label="Conectar un agente de IA por MCP"><i class="dot" data-state="off"></i><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0zM12 17v5"/></svg>MCP</button>
-    <button id="bExport" title="Descargar como JSON">Exportar</button>
-    <button id="bImport" title="Cargar un JSON">Importar</button>
-    <input type="file" id="fileIn" accept=".json,application/json" hidden>
+
+    <span id="saved" title="Tus protoboards se guardan en este navegador" aria-live="polite">Guardado</span>
+    <button id="bAI" class="pcOnly" title="Conectar un agente de IA por MCP"><i class="dot" data-state="off"></i><svg class="ico" aria-hidden="true"><use href="#i-plug"/></svg>MCP</button>
   </header>
 
   <main>
-    <aside id="left">
-      <div class="tools">
-        <button data-tool="select" title="Seleccionar y mover (V)">Seleccionar</button>
-        <button data-tool="erase" title="Borrar componentes (E)">Borrar</button>
+    <aside id="left" aria-label="Componentes">
+      <div class="sheetHead">
+        <h2>Componentes</h2>
+        <button class="tb sheetClose" data-close aria-label="Cerrar"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
-      <input id="search" type="search" placeholder="Buscar componente…" autocomplete="off">
+      <input id="search" name="search" type="search" placeholder="Buscar: LED, 555, sensor…" aria-label="Buscar componente" autocomplete="off" spellcheck="false">
+      <div id="cats" class="chips" role="group" aria-label="Categorías"></div>
       <div id="palette"></div>
     </aside>
 
-    <section id="stage" data-view="split">
+    <section id="stage" data-view="split" aria-label="Lienzo" tabindex="-1">
       <div id="pane2d">
-        <svg id="svg" font-family="system-ui, sans-serif"></svg>
-        <div class="zoom">
-          <button id="zIn" title="Acercar">+</button>
-          <button id="zOut" title="Alejar">−</button>
-          <button id="zFit" title="Ajustar a la vista">Ajustar</button>
+        <svg id="svg" font-family="Barlow, system-ui, sans-serif" role="img" aria-label="Editor 2D de la protoboard"></svg>
+
+        <div id="toolbar" role="toolbar" aria-label="Herramientas">
+          <div class="tbGroup tbTools">
+            <button class="tb" data-tool="select" title="Seleccionar y mover (V)" aria-label="Seleccionar y mover"><svg class="ico" aria-hidden="true"><use href="#i-select"/></svg></button>
+            <button class="tb" data-tool="wire" title="Cable (W)" aria-label="Cable"><svg class="ico" aria-hidden="true"><use href="#i-wire"/></svg></button>
+            <button class="tb" data-tool="erase" title="Borrar componentes (E)" aria-label="Borrar componentes"><svg class="ico" aria-hidden="true"><use href="#i-erase"/></svg></button>
+          </div>
+          <div class="tbGroup">
+            <button class="tb" id="bUndo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer"><svg class="ico" aria-hidden="true"><use href="#i-undo"/></svg></button>
+            <button class="tb" id="bRedo" title="Rehacer (Ctrl+Y)" aria-label="Rehacer"><svg class="ico" aria-hidden="true"><use href="#i-redo"/></svg></button>
+          </div>
+          <div class="tbGroup">
+            <button class="tb tbZoom" id="zOut" title="Alejar" aria-label="Alejar"><svg class="ico" aria-hidden="true"><use href="#i-minus"/></svg></button>
+            <button class="tb" id="zFit" title="Ajustar a la vista" aria-label="Ajustar a la vista"><svg class="ico" aria-hidden="true"><use href="#i-fit"/></svg></button>
+            <button class="tb tbZoom" id="zIn" title="Acercar" aria-label="Acercar"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg></button>
+          </div>
+        </div>
+
+        <p id="empty" hidden>Esta protoboard está vacía. Elige un componente y colócalo sobre ella.</p>
+
+        <div id="selBar" hidden>
+          <span id="selName"></span>
+          <button id="selEdit">Editar</button>
+          <button id="selDel" class="danger">Eliminar</button>
         </div>
       </div>
-      <div id="pane3d"><p id="msg3d" hidden></p></div>
+      <div id="pane3d" aria-label="Vista 3D"><p id="msg3d" hidden></p></div>
     </section>
 
-    <aside id="right">
+    <aside id="right" aria-label="Ajustes">
+      <div class="sheetHead">
+        <h2>Ajustes</h2>
+        <button class="tb sheetClose" data-close aria-label="Cerrar"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+      </div>
+      <section id="props">
+        <h2>Componente</h2>
+        <div id="propsBody"></div>
+      </section>
       <section>
         <h2>Protoboard</h2>
-        <label>Nombre <input id="fName" type="text" maxlength="60"></label>
-        <label>Tamaño
-          <select id="fPreset"></select>
-        </label>
+        <label>Nombre <input id="fName" name="board-name" type="text" maxlength="60" autocomplete="off"></label>
+        <label>Tamaño <select id="fPreset" name="board-size"></select></label>
         <div class="row">
-          <label>Columnas <input id="fCols" type="number"></label>
+          <label>Columnas <input id="fCols" name="board-cols" type="number" inputmode="numeric" autocomplete="off"></label>
           <label>Rieles
-            <select id="fRails">
+            <select id="fRails" name="board-rails">
               <option value="both">Ambos lados</option>
               <option value="top">Solo arriba</option>
               <option value="none">Sin rieles</option>
@@ -82,63 +152,62 @@
         <div class="field">Color <div class="swatches" id="fColor"></div></div>
         <p class="hint" id="points"></p>
       </section>
-      <section id="props" hidden>
-        <h2>Componente</h2>
-        <div id="propsBody"></div>
-      </section>
       <section>
-        <h2>Lista de materiales</h2>
+        <h2>Materiales</h2>
         <ul id="bom"></ul>
       </section>
     </aside>
   </main>
 
-  <nav id="mobileBar">
-    <button data-drawer="left">Componentes</button>
-    <button data-tool="select">Seleccionar</button>
-    <button data-tool="erase">Borrar</button>
-    <button data-drawer="right" id="mEdit">Ajustes</button>
+  <nav id="mobileBar" aria-label="Herramientas">
+    <button data-tool="select"><svg class="ico" aria-hidden="true"><use href="#i-select"/></svg><span>Mover</span></button>
+    <button data-tool="wire"><svg class="ico" aria-hidden="true"><use href="#i-wire"/></svg><span>Cable</span></button>
+    <button data-drawer="left" id="mParts"><svg class="ico" aria-hidden="true"><use href="#i-parts"/></svg><span>Piezas</span></button>
+    <button data-tool="erase"><svg class="ico" aria-hidden="true"><use href="#i-erase"/></svg><span>Borrar</span></button>
+    <button data-drawer="right" id="mEdit"><svg class="ico" aria-hidden="true"><use href="#i-sliders"/></svg><span>Ajustes</span></button>
   </nav>
 
   <footer id="status">
     <span id="stTool"></span>
     <span id="stHole"></span>
     <span class="grow"></span>
-    <span class="hint">Rueda: zoom · Arrastrar fondo: mover vista · Supr: borrar · Esc: cancelar</span>
+    <span class="hint keys">Rueda para zoom, arrastra el fondo para mover la vista, Supr borra, Esc cancela</span>
   </footer>
 
-  <dialog id="aiDlg">
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="aiDlg" aria-labelledby="aiTitle">
     <form method="dialog" class="dlgHead">
-      <h2><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0zM12 17v5"/></svg>Conectar IA por MCP</h2>
-      <button aria-label="Cerrar">✕</button>
+      <h2 id="aiTitle"><svg class="ico" aria-hidden="true"><use href="#i-plug"/></svg>Conectar un agente de IA</h2>
+      <button class="tb" aria-label="Cerrar"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </form>
-    <p>Da acceso a un agente de IA instalado en este PC (Claude Code, Codex, OpenCode o cualquier cliente MCP) para que lea y edite tus protoboards mientras las ves.</p>
+    <p>Un agente instalado en este PC (Claude Code, Codex, OpenCode o cualquier cliente MCP) puede leer y editar tus protoboards mientras las ves.</p>
     <div class="aiStatus">
       <i class="dot" id="aiDot" data-state="off"></i>
-      <span id="aiState"></span>
+      <span id="aiState" aria-live="polite"></span>
       <span class="grow"></span>
-      <label>Puerto <input id="aiPort" type="number" min="1024" max="65535"></label>
+      <label>Puerto <input id="aiPort" name="mcp-port" type="number" inputmode="numeric" min="1024" max="65535" autocomplete="off"></label>
       <button id="aiToggle"></button>
     </div>
     <ol class="steps">
       <li>
-        <b>Inicia el puente</b> en una terminal y déjala abierta. Necesita Node.js 18 o superior.
-        <div class="cmd"><pre id="cmdBridge"></pre><button data-copy="cmdBridge">Copiar</button></div>
+        <b>Inicia el puente</b> en una terminal y déjala abierta. Necesita Node.js&nbsp;18 o superior.
+        <div class="cmd"><pre id="cmdBridge" translate="no"></pre><button data-copy="cmdBridge">Copiar</button></div>
       </li>
       <li>
         <b>Da acceso a tu agente.</b> Solo hace falta una vez.
-        <div class="seg" id="aiTabs">
-          <button data-agent="claude">Claude Code</button>
-          <button data-agent="codex">Codex</button>
-          <button data-agent="opencode">OpenCode</button>
+        <div class="seg" id="aiTabs" role="group" aria-label="Agente">
+          <button data-agent="claude" translate="no">Claude Code</button>
+          <button data-agent="codex" translate="no">Codex</button>
+          <button data-agent="opencode" translate="no">OpenCode</button>
           <button data-agent="other">Otro</button>
         </div>
-        <div class="cmd"><pre id="cmdAgent"></pre><button data-copy="cmdAgent">Copiar</button></div>
+        <div class="cmd"><pre id="cmdAgent" translate="no"></pre><button data-copy="cmdAgent">Copiar</button></div>
         <p class="hint" id="agentNote"></p>
       </li>
       <li>
         <b>Pulsa Conectar</b> y pídele algo a tu agente. Por ejemplo:
-        <q>Monta en ProtoLab un LED rojo con una resistencia de 220 Ω entre los rieles de alimentación.</q>
+        <q>Monta en ProtoLab un LED rojo con una resistencia de 220&nbsp;Ω entre los rieles de alimentación.</q>
       </li>
     </ol>
     <h3>Actividad</h3>

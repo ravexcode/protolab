@@ -2,10 +2,10 @@
 // A hole is [column, y]. Rows: top rails y=0,1 · a–e y=3..7 · f–j y=10..14 · bottom rails y=16,17.
 
 export const PRESETS = {
-  mini: { name: 'Mini · 170 puntos', cols: 17, rails: 'none' },
-  half: { name: 'Media · 400 puntos', cols: 30, rails: 'both' },
-  full: { name: 'Completa · 830 puntos', cols: 63, rails: 'both' },
-  xl: { name: 'Doble · 1660 puntos', cols: 126, rails: 'both' },
+  mini: { name: 'Mini, 170 puntos', cols: 17, rails: 'none' },
+  half: { name: 'Media, 400 puntos', cols: 30, rails: 'both' },
+  full: { name: 'Completa, 830 puntos', cols: 63, rails: 'both' },
+  xl: { name: 'Doble, 1660 puntos', cols: 126, rails: 'both' },
 };
 export const MIN_COLS = 5, MAX_COLS = 150;
 export const BOARD_COLORS = ['#f4f1e8', '#ffffff', '#2b2b2e', '#e53935', '#1e88e5', '#43a047', '#fdd835'];
@@ -55,7 +55,7 @@ export function bounds(board) {
 }
 
 export function holeName(c, y) {
-  if (isRailY(y)) return `Riel ${y % 2 === 0 ? '+' : '−'} ${y < 8 ? 'superior' : 'inferior'} · ${c + 1}`;
+  if (isRailY(y)) return `riel ${y % 2 === 0 ? '+' : '−'} ${y < 8 ? 'superior' : 'inferior'}, columna ${c + 1}`;
   return LETTERS[TERMINAL_Y.indexOf(y)] + (c + 1);
 }
 

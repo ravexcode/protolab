@@ -10,6 +10,17 @@ const $ = id => document.getElementById(id);
 const uid = () => Math.random().toString(36).slice(2, 10);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const TWO_PIN = new Set(['wire', 'axial', 'radial']);
+const ICON = name => `<svg class="ico" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+
+// Brief message at the bottom of the screen, announced to screen readers.
+let toastTimer = 0;
+function toast(text, isError = false) {
+  const el = $('toast');
+  el.textContent = text;
+  el.className = isError ? 'show error' : 'show';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, isError ? 5000 : 2500);
+}
 
 // ---------- storage ----------
 // Rebuilds a board from untrusted JSON, dropping anything that does not fit.
@@ -80,7 +91,7 @@ function save() {
     }));
   } catch { ok = false; }
   $('saved').textContent = ok ? 'Guardado' : 'No se pudo guardar';
-  $('saved').style.color = ok ? '' : 'var(--danger)';
+  $('saved').classList.toggle('error', !ok);
 }
 
 // ---------- state ----------
@@ -147,6 +158,7 @@ function refresh() {
   renderBOM();
   $('bUndo').disabled = hist.i === 0;
   $('bRedo').disabled = hist.i === hist.stack.length - 1;
+  $('empty').hidden = app.board.parts.length > 0;
   if (view3d && store.view !== '2d') view3d.setBoard(app.board);
 }
 
@@ -154,7 +166,7 @@ function refresh() {
 function showBoard(fit = true) {
   editor.renderBoard();
   if (fit) editor.fit();
-  renderBoardSel();
+  renderBoardMenu();
   syncBoardForm();
   refresh();
 }
@@ -169,12 +181,24 @@ function switchBoard(board) {
 }
 
 // ---------- top bar ----------
-function renderBoardSel() {
-  $('boardSel').innerHTML = store.boards.map((b, i) =>
-    `<option value="${i}"${b === app.board ? ' selected' : ''}>${esc(b.name)}</option>`).join('');
+function renderBoardMenu() {
+  $('docName').textContent = app.board.name;
+  $('boardList').innerHTML = store.boards.map((b, i) =>
+    `<button role="menuitemradio" aria-checked="${b === app.board}" data-board="${i}">${ICON('check')}<span>${esc(b.name)}</span><small>${b.parts.length} ${b.parts.length === 1 ? 'pieza' : 'piezas'}</small></button>`).join('');
 }
 
-$('boardSel').onchange = e => switchBoard(store.boards[+e.target.value]);
+function setMenu(open) {
+  $('boardMenu').hidden = !open;
+  $('bBoards').setAttribute('aria-expanded', String(open));
+  if (open) renderBoardMenu();
+}
+$('bBoards').onclick = () => setMenu($('boardMenu').hidden);
+$('boardMenu').addEventListener('click', e => { if (e.target.closest('button')) setMenu(false); });
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.doc')) setMenu(false); });
+$('boardList').onclick = e => {
+  const b = e.target.closest('[data-board]');
+  if (b) switchBoard(store.boards[+b.dataset.board]);
+};
 $('bNew').onclick = () => {
   const board = sanitizeBoard({ name: `Protoboard ${store.boards.length + 1}`, cols: 30, rails: 'both' });
   store.boards.push(board);
@@ -186,10 +210,12 @@ $('bDup').onclick = () => {
   switchBoard(board);
 };
 $('bDel').onclick = () => {
-  if (!confirm(`¿Eliminar "${app.board.name}"? No se puede deshacer.`)) return;
+  const name = app.board.name;
+  if (!confirm(`¿Eliminar «${name}»? No se puede deshacer.`)) return;
   store.boards.splice(store.boards.indexOf(app.board), 1);
   if (!store.boards.length) store.boards.push(sanitizeBoard({ name: 'Protoboard 1' }));
   switchBoard(store.boards[0]);
+  toast(`Se eliminó «${name}»`);
 };
 $('bUndo').onclick = () => travel(-1);
 $('bRedo').onclick = () => travel(1);
@@ -201,6 +227,7 @@ $('bExport').onclick = () => {
   a.download = (app.board.name.replace(/[^\w\- ]+/g, '').trim() || 'protoboard') + '.json';
   a.click();
   URL.revokeObjectURL(a.href);
+  toast(`Exportada como ${a.download}`);
 };
 $('bImport').onclick = () => $('fileIn').click();
 $('fileIn').onchange = async e => {
@@ -213,8 +240,9 @@ $('fileIn').onchange = async e => {
     if (!list.length) throw new Error('empty');
     store.boards.push(...list);
     switchBoard(list[0]);
+    toast(list.length === 1 ? `Importada «${list[0].name}»` : `Importadas ${list.length} protoboards`);
   } catch {
-    alert('El archivo no es una protoboard válida.');
+    toast('Ese archivo no es una protoboard. Elige un JSON exportado desde ProtoLab.', true);
   }
 };
 
@@ -226,7 +254,7 @@ function ensure3D() {
   }).catch(err => {
     console.error(err);
     $('msg3d').hidden = false;
-    $('msg3d').textContent = 'No se pudo iniciar la vista 3D (WebGL no disponible).';
+    $('msg3d').textContent = 'La vista 3D necesita WebGL y este navegador no lo ofrece. La vista 2D sigue funcionando.';
   });
   return loading3d;
 }
@@ -249,21 +277,42 @@ function setTool(tool) {
   editor.cancel();
   for (const b of document.querySelectorAll('[data-tool]')) b.classList.toggle('active', b.dataset.tool === tool);
   const def = getDef(tool);
-  $('stTool').textContent = !def ? (tool === 'erase' ? 'Borrar: haz clic en un componente' : 'Seleccionar: clic para elegir, arrastra para mover')
-    : TWO_PIN.has(def.kind) ? `${def.name}: clic en un agujero y luego en otro, o arrastra entre ambos`
-      : `${def.name}: clic sobre la protoboard para colocarlo`;
+  $('stTool').textContent = !def ? (tool === 'erase' ? 'Borrar: toca un componente para quitarlo' : 'Mover: toca un componente para elegirlo, arrástralo para moverlo')
+    : TWO_PIN.has(def.kind) ? `${def.name}: arrastra de un agujero a otro, o toca los dos`
+      : `${def.name}: toca la protoboard para colocarlo`;
+  // On phones the Piezas tab shows which component is armed.
+  const armed = def && tool !== 'wire';
+  $('mParts').lastElementChild.textContent = armed ? def.name : 'Piezas';
+  $('mParts').classList.toggle('active', !!armed);
 }
 
-function renderPalette(filter = '') {
-  const q = filter.trim().toLowerCase();
+let category = '';   // '' shows every category
+
+function renderCategories() {
+  $('cats').innerHTML = ['', ...CATALOG.map(g => g.cat)].map(c =>
+    `<button data-cat="${esc(c)}" aria-pressed="${c === category}"${c === category ? ' class="active"' : ''}>${esc(c || 'Todo')}</button>`).join('');
+}
+$('cats').onclick = e => {
+  const b = e.target.closest('[data-cat]');
+  if (!b) return;
+  category = b.dataset.cat;
+  renderCategories();
+  renderPalette();
+  $('palette').scrollTop = 0;
+};
+
+function renderPalette() {
+  const q = $('search').value.trim().toLowerCase();
   let html = '';
   for (const group of CATALOG) {
+    if (category && group.cat !== category) continue;
     const items = group.items.filter(d => !q || (d.name + ' ' + (d.desc || '') + ' ' + group.cat).toLowerCase().includes(q));
     if (!items.length) continue;
     html += `<h3>${esc(group.cat)}</h3>` + items.map(d =>
       `<button class="item${d.type === app.tool ? ' active' : ''}" data-tool="${d.type}">${iconSVG(d)}<span>${esc(d.name)}${d.desc ? `<small>${esc(d.desc)}</small>` : ''}</span></button>`).join('');
   }
-  $('palette').innerHTML = html || '<p class="hint">Sin resultados.</p>';
+  $('palette').innerHTML = html
+    || `<p class="hint">Ningún componente coincide con «${esc($('search').value.trim())}»${category ? ` en ${esc(category)}` : ''}. Prueba con otro nombre.</p>`;
 }
 
 // Bottom sheets used on small screens ('left' = components, 'right' = settings).
@@ -275,16 +324,17 @@ function setDrawer(name) {
 
 document.addEventListener('click', e => {
   const tool = e.target.closest('[data-tool]'), drawer = e.target.closest('button[data-drawer]');
-  if (tool) { setTool(tool.dataset.tool); setDrawer(null); }
+  if (e.target.closest('[data-close]')) setDrawer(null);
+  else if (tool) { setTool(tool.dataset.tool); setDrawer(null); }
   else if (drawer) setDrawer(document.body.dataset.drawer === drawer.dataset.drawer ? null : drawer.dataset.drawer);
 });
 $('stage').addEventListener('pointerdown', () => setDrawer(null));
-$('search').oninput = e => renderPalette(e.target.value);
+$('search').oninput = () => renderPalette();
 
 // ---------- board form ----------
 function swatches(colors, current, withPicker) {
-  return colors.map(c => `<button type="button" data-color="${c}" style="background:${c}" title="${c}"${c === current ? ' class="active"' : ''}></button>`).join('')
-    + (withPicker ? `<input type="color" value="${safeColor(current, '#e53935')}" title="Otro color">` : '');
+  return colors.map(c => `<button type="button" data-color="${c}" style="background:${c}" aria-label="Color ${c}" aria-pressed="${c === current}"${c === current ? ' class="active"' : ''}></button>`).join('')
+    + (withPicker ? `<input type="color" value="${safeColor(current, '#e53935')}" aria-label="Otro color" title="Otro color">` : '');
 }
 
 function syncBoardForm() {
@@ -296,13 +346,14 @@ function syncBoardForm() {
   $('fPreset').value = preset || 'custom';
   $('fColor').innerHTML = swatches(BOARD_COLORS, b.color);
   $('points').textContent = `${holes(b).length} puntos de conexión`;
+  document.title = `${b.name} | ProtoLab`;
 }
 
 function applyConfig(patch) {
   const next = { ...app.board, ...patch };
   const kept = app.board.parts.filter(p => pinsValid(next, p.pins));
   const lost = app.board.parts.length - kept.length;
-  if (lost && !confirm(`${lost} componente(s) no caben en el nuevo tamaño y se eliminarán. ¿Continuar?`)) return syncBoardForm();
+  if (lost && !confirm(`${lost === 1 ? 'Un componente no cabe' : `${lost} componentes no caben`} en el nuevo tamaño y se eliminarán. ¿Cambiar el tamaño?`)) return syncBoardForm();
   Object.assign(app.board, patch, { parts: kept });
   if (!kept.some(p => p.id === app.selected)) app.selected = null;
   commit();
@@ -322,7 +373,8 @@ $('fCols').onchange = e => applyConfig({ cols: clamp(Math.round(+e.target.value)
 $('fRails').onchange = e => applyConfig({ rails: e.target.value });
 $('fName').oninput = e => {
   app.board.name = e.target.value.slice(0, 60) || 'Protoboard';
-  renderBoardSel();
+  renderBoardMenu();
+  document.title = `${app.board.name} | ProtoLab`;
   save();
 };
 $('fName').onchange = commit;
@@ -337,19 +389,22 @@ $('fColor').onclick = e => {
 // ---------- selected part ----------
 function renderProps() {
   const part = app.board.parts.find(p => p.id === app.selected);
-  $('props').hidden = !part;
-  $('mEdit').textContent = part ? 'Editar' : 'Ajustes';
-  $('mEdit').classList.toggle('active', !!part);
-  if (!part) return;
+  $('selBar').hidden = !part;
+  $('mEdit').classList.toggle('has', !!part);
+  if (!part) {
+    $('propsBody').innerHTML = '<p class="hint">Elige un componente de la protoboard para cambiar su color, su valor o su etiqueta.</p>';
+    return;
+  }
   const def = getDef(part.type), props = { ...def.props, ...part.props };
+  $('selName').textContent = def.name;
   const where = TWO_PIN.has(def.kind)
-    ? `${holeName(...part.pins[0])} → ${holeName(...part.pins[1])}`
-    : `${part.pins.length} pines · desde ${holeName(...part.pins[0])}`;
+    ? `De ${holeName(...part.pins[0])} a ${holeName(...part.pins[1])}`
+    : `${part.pins.length} pines, el primero en ${holeName(...part.pins[0])}`;
   let html = `<div class="name">${esc(def.name)}</div><p class="hint pins">${esc(where)}</p>`;
   for (const f of def.fields || []) {
     html += f.type === 'color'
       ? `<div class="field">${f.label}<div class="swatches" data-key="${f.key}">${swatches(SWATCHES, props[f.key], true)}</div></div>`
-      : `<label>${f.label}<input type="text" data-key="${f.key}" maxlength="24" value="${esc(props[f.key])}" placeholder="${esc(f.ph || '')}"></label>`;
+      : `<label>${f.label}<input type="text" name="part-${f.key}" data-key="${f.key}" maxlength="24" autocomplete="off" spellcheck="false" value="${esc(props[f.key])}" placeholder="${esc(f.ph || '')}"></label>`;
   }
   $('propsBody').innerHTML = html + '<button id="bRemove" class="danger">Eliminar componente</button>';
 }
@@ -381,17 +436,25 @@ function renderBOM() {
   const count = new Map();
   for (const part of app.board.parts) {
     const def = getDef(part.type), p = { ...def.props, ...part.props };
-    const extra = p.value || (p.label && p.label !== def.name ? p.label : '');
-    const name = def.name + (extra ? ` · ${extra}` : '');
+    const extra = p.value || (p.label && !def.name.includes(p.label) ? p.label : '');
+    const name = def.name + '\n' + extra;
     count.set(name, (count.get(name) || 0) + 1);
   }
-  $('bom').innerHTML = [...count].sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([name, n]) => `<li><span>${esc(name)}</span><span>×${n}</span></li>`).join('')
-    || '<li class="hint">Aún no hay componentes.</li>';
+  $('bom').innerHTML = [...count].sort((a, b) => a[0].localeCompare(b[0], 'es'))
+    .map(([name, n]) => {
+      const [title, extra] = name.split('\n');
+      return `<li><span>${esc(title)}${extra ? ` <small>${esc(extra)}</small>` : ''}</span><span>×${n}</span></li>`;
+    }).join('')
+    || '<li class="hint">Lo que coloques aparecerá aquí, contado por tipo.</li>';
 }
+
+$('selEdit').onclick = () => setDrawer('right');
+$('selDel').onclick = () => app.selected && app.removePart(app.selected);
 
 // ---------- keyboard ----------
 addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('boardMenu').hidden) { setMenu(false); $('bBoards').focus(); return; }
+  if (e.key === 'Escape' && document.body.dataset.drawer) return setDrawer(null);
   if (e.target.closest?.('input, select, textarea')) return;
   const ctrl = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
   if (ctrl && k === 'z') { e.preventDefault(); travel(e.shiftKey ? 1 : -1); }
@@ -407,9 +470,10 @@ addEventListener('keydown', e => {
 });
 
 // ---------- start ----------
+renderCategories();
 renderPalette();
 setTool('select');
 resetHistory();
 showBoard();
 setView(store.view);
-initAI({ store, app, editor, uid, sanitizeBoard, switchBoard, commit, showBoard });
+initAI({ store, app, editor, uid, sanitizeBoard, switchBoard, commit, showBoard, toast });

@@ -47,6 +47,18 @@ SOFTWARE.
 
 Third-party software
 
-The files in vendor/ are part of three.js (https://threejs.org),
-Copyright (c) 2010-2023 three.js authors, distributed under the plain MIT
-License. The Commons Clause condition above does not apply to them.
+The Commons Clause condition above does not apply to the following, which keep
+their own licences:
+
+- vendor/three.module.min.js, vendor/OrbitControls.js and
+  vendor/RoomEnvironment.js are part of three.js (https://threejs.org),
+  Copyright (c) 2010-2023 three.js authors, MIT License.
+- vendor/fonts/ contains the Barlow and Barlow Semi Condensed typefaces,
+  Copyright 2017 The Barlow Project Authors
+  (https://github.com/jpt/barlow), SIL Open Font License 1.1.
+- .claude/skills/frontend-design and .agents/skills/frontend-design come from
+  https://github.com/anthropics/skills, Apache License 2.0 (see the
+  LICENSE.txt beside them).
+- .claude/skills/web-design-guidelines and
+  .agents/skills/web-design-guidelines come from
+  https://github.com/vercel-labs/agent-skills, MIT License.

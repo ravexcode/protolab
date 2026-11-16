@@ -31,7 +31,7 @@ export class View3D {
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#14171c');
+    this.scene.background = new THREE.Color('#1c4c40');
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
@@ -46,7 +46,21 @@ export class View3D {
     this.sun.shadow.bias = -0.0005;
     this.scene.add(this.sun, this.sun.target, new THREE.HemisphereLight('#ffffff', '#30343c', 0.5));
 
-    this.desk = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), mat('#262a31', { roughness: 0.9 }));
+    // The desk is the same green cutting mat as the 2D workspace: a line every 4 units, heavier every 20.
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 320;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#245e4f'; c.fillRect(0, 0, 320, 320);
+    for (let i = 0; i < 5; i++) {
+      c.fillStyle = i ? 'rgba(255,255,255,.08)' : 'rgba(255,255,255,.2)';
+      c.fillRect(i * 64, 0, 2, 320); c.fillRect(0, i * 64, 320, 2);
+    }
+    const grid = new THREE.CanvasTexture(cv);
+    grid.colorSpace = THREE.SRGBColorSpace;
+    grid.wrapS = grid.wrapT = THREE.RepeatWrapping;
+    grid.repeat.set(200, 200);
+    grid.anisotropy = 8;
+    this.desk = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshStandardMaterial({ map: grid, roughness: 0.95 }));
     this.desk.rotation.x = -Math.PI / 2;
     this.desk.position.y = -BOARD_H;
     this.desk.receiveShadow = true;

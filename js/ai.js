@@ -198,9 +198,9 @@ export function initAI(api) {
     state = next;
     for (const dot of [$('aiDot'), $('bAI').firstElementChild]) dot.dataset.state = next;
     $('aiState').textContent = next === 'on' ? 'Conectado al puente'
-      : next === 'waiting' ? 'Buscando el puente… ¿está en marcha?' : 'Desconectado';
+      : next === 'waiting' ? 'Buscando el puente… Inicia el paso 1 si aún no lo has hecho.' : 'Sin conectar';
     $('aiToggle').textContent = next === 'off' ? 'Conectar' : 'Desconectar';
-    $('aiToggle').classList.toggle('active', next === 'off');
+    $('aiToggle').classList.toggle('primary', next === 'off');
     $('aiPort').disabled = next !== 'off';
   }
 
@@ -309,7 +309,7 @@ export function initAI(api) {
     try {
       await navigator.clipboard.writeText($(id).textContent);
       e.target.textContent = 'Copiado';
-    } catch { e.target.textContent = 'Selecciona y copia'; }
+    } catch { e.target.textContent = 'Selecciónalo y copia'; }
     setTimeout(() => { e.target.textContent = 'Copiar'; }, 1500);
   });
 

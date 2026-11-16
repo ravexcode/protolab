@@ -15,6 +15,7 @@ Editor de protoboards en el navegador: diseña en 2D, mira el resultado en 3D y 
 - **Varias protoboards**: crea, duplica, renombra y elimina. Exporta e importa en JSON.
 - **Guardado local**: todo se guarda en `localStorage` del navegador. No hay servidor ni cuentas.
 - Deshacer / rehacer y lista de materiales automática.
+- **Móvil y escritorio**: en el teléfono los paneles pasan a hojas inferiores, con zoom de pellizco. Tema claro y oscuro según el sistema.
 
 ## Conectar un agente de IA (solo PC)
 
@@ -92,12 +93,14 @@ js/ai.js          Enlace con agentes de IA
 bridge/           Puente MCP local (Node.js)
 tests/            Pruebas (node:test)
 .github/          Integración y despliegue continuos
+AGENTS.md         Guía del proyecto para agentes de IA (CLAUDE.md la importa)
+.claude/ .agents/ Skills de diseño instaladas en el proyecto
 vendor/           Three.js r160
 ```
 
 ## Contribuir
 
-Las contribuciones son bienvenidas: lee [CONTRIBUTING.md](CONTRIBUTING.md).
+Las contribuciones son bienvenidas: lee [CONTRIBUTING.md](CONTRIBUTING.md). Si trabajas con un agente de IA, [AGENTS.md](AGENTS.md) recoge las reglas del proyecto y su sistema de diseño.
 
 Gracias a [todas las personas que han contribuido](https://github.com/ravexcode/protolab/graphs/contributors).
 
@@ -105,4 +108,4 @@ Gracias a [todas las personas que han contribuido](https://github.com/ravexcode/
 
 [MIT con la condición Commons Clause](LICENSE). Puedes usar, copiar, modificar, hacer forks y redistribuir ProtoLab libremente, también dentro de proyectos comerciales. Lo único que no permite es vender ProtoLab en sí: ofrecer de pago un producto o servicio cuyo valor provenga total o sustancialmente de este software.
 
-Three.js (`vendor/`) conserva su licencia MIT original.
+Three.js, las fuentes Barlow y las skills instaladas conservan sus propias licencias (MIT, OFL 1.1, Apache 2.0); el detalle está al final de `LICENSE`.
