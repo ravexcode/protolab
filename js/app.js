@@ -4,12 +4,14 @@ import { PRESETS, MIN_COLS, MAX_COLS, BOARD_COLORS, holes, holeName, pinsValid, 
 import { Editor2D } from './editor2d.js';
 import { iconSVG, esc, safeColor } from './draw2d.js';
 import { initAI } from './ai.js';
+import { simulate } from './sim.js';
 
 const LS_KEY = 'protolab.v1';
 const $ = id => document.getElementById(id);
 const uid = () => Math.random().toString(36).slice(2, 10);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const TWO_PIN = new Set(['wire', 'axial', 'radial']);
+const SOURCE_TYPES = new Set(CATALOG.find(g => g.cat === 'Alimentación').items.map(d => d.type));
 const ICON = name => `<svg class="ico" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
 // Brief message at the bottom of the screen, announced to screen readers.
@@ -56,8 +58,9 @@ function demoBoard() {
   return sanitizeBoard({
     name: 'Ejemplo', cols: 30, rails: 'both',
     parts: [
+      { type: 'battery9v', pins: [[1, 0], [1, 1]] },
       { type: 'wire', pins: [[3, 0], [3, 3]], props: { color: '#e53935' } },
-      { type: 'resistor', pins: [[3, 5], [7, 5]], props: { value: '220' } },
+      { type: 'resistor', pins: [[3, 5], [7, 5]], props: { value: '470' } },
       { type: 'led', pins: [[7, 6], [8, 6]], props: { color: '#43a047' } },
       { type: 'wire', pins: [[8, 4], [8, 1]], props: { color: '#222222' } },
       { type: 'ic-NE555', pins: [[12, 10], [13, 10], [14, 10], [15, 10], [15, 7], [14, 7], [13, 7], [12, 7]] },
@@ -104,6 +107,7 @@ const app = {
   board: store.current,
   tool: 'select',
   selected: null,
+  sim: null,          // result of Probar while the circuit is powered
   addPart(type, pins) {
     const part = { id: uid(), type, pins, props: { ...lastProps[type] } };
     app.board.parts.push(part);
@@ -159,8 +163,111 @@ function refresh() {
   $('bUndo').disabled = hist.i === 0;
   $('bRedo').disabled = hist.i === hist.stack.length - 1;
   $('empty').hidden = app.board.parts.length > 0;
-  if (view3d && store.view !== '2d') view3d.setBoard(app.board);
+  if (power) runTest();
+  if (view3d && store.view !== '2d') view3d.setBoard(app.board, app.sim);
 }
+
+// ---------- circuit test ----------
+// While Probar is on, every edit re-runs the test, so faults update as the user fixes them.
+let power = false;
+
+function setPower(on) {
+  if (on && !app.board.parts.some(p => SOURCE_TYPES.has(p.type))) {
+    return toast('Añade una batería de Alimentación y conecta sus dos terminales para probar el circuito.', true);
+  }
+  power = on;
+  $('bPower').setAttribute('aria-pressed', String(on));
+  if (!on) {
+    app.sim = null;
+    showShort(false);
+    renderBug();
+    editor.renderSim();
+    if (view3d && store.view !== '2d') view3d.setBoard(app.board, null);
+    return;
+  }
+  app.sim = null;
+  refresh();
+  const sim = app.sim;
+  if (!sim || sim.short) return;
+  const leds = sim.leds ? ` LED encendidos: ${Object.keys(sim.lit).length} de ${sim.leds}.` : '';
+  toast(sim.faults.length ? `${sim.faults.length === 1 ? 'Hay un fallo' : `Hay ${sim.faults.length} fallos`}. Míralos en el botón rojo de la esquina.${leds}`
+    : `Circuito sin fallos.${leds}`);
+}
+
+function runTest() {
+  const before = app.sim;
+  const sim = app.sim = simulate(app.board);
+  if (!app.board.parts.some(p => SOURCE_TYPES.has(p.type))) {
+    power = false;
+    app.sim = null;
+    $('bPower').setAttribute('aria-pressed', 'false');
+    showShort(false);
+    renderBug();
+    return toast('Se apagó la prueba: ya no queda ninguna batería en la protoboard.');
+  }
+  editor.renderSim();
+  renderBug();
+  if (sim.short && !before?.short) {
+    const part = app.board.parts.find(p => p.id === sim.shortAt);
+    explode(part);
+    $('shortTitle').textContent = `¡Cortocircuito en ${part ? getDef(part.type).name.toLowerCase() : 'la batería'}!`;
+    showShort(true);
+  } else if (!sim.short) showShort(false);
+}
+
+function showShort(on) {
+  $('shortWarn').hidden = !on;
+}
+$('shortClose').onclick = () => showShort(false);
+
+function renderBug() {
+  const faults = app.sim?.faults || [];
+  $('bBug').hidden = !faults.length;
+  $('bugCount').textContent = faults.length;
+  $('bBug').setAttribute('aria-label', `${faults.length === 1 ? 'Un fallo' : `${faults.length} fallos`} en el circuito`);
+  if (!faults.length && $('bugPanel').matches(':popover-open')) $('bugPanel').hidePopover();
+  $('bugList').innerHTML = faults.map((f, i) => {
+    const part = app.board.parts.find(p => p.id === f.parts[0]);
+    const where = part ? holeName(...part.pins[0]) : '';
+    return `<li><button data-fault="${i}"${f.kind === 'short' ? ' class="short"' : ''}><b>${esc(f.title)}</b>${esc(f.text)}${where ? `<small>En ${esc(where)}</small>` : ''}</button></li>`;
+  }).join('');
+}
+$('bugList').onclick = e => {
+  const b = e.target.closest('[data-fault]');
+  const f = b && app.sim?.faults[+b.dataset.fault];
+  if (!f) return;
+  $('bugPanel').hidePopover();
+  if (store.view === '3d') setView('split');
+  app.select(f.parts[0]);
+};
+
+// Over the top on purpose: the warning under it says so.
+function explode(part) {
+  let at = part && store.view !== '3d' ? editor.screenPoint(part) : null;
+  if (!at) {
+    const r = $('stage').getBoundingClientRect();
+    at = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+  const boom = document.createElement('div');
+  boom.className = 'boom';
+  boom.style.left = at.x + 'px';
+  boom.style.top = at.y + 'px';
+  let html = '<i class="flash"></i><i class="ball"></i><i class="ring"></i>';
+  for (let i = 0; i < 22; i++) {
+    const a = Math.random() * Math.PI * 2, d = 70 + Math.random() * 170;
+    html += `<i class="spark" style="--dx:${Math.cos(a) * d | 0}px;--dy:${Math.sin(a) * d | 0}px;--t:${(0.5 + Math.random() * 0.6).toFixed(2)}s"></i>`;
+  }
+  for (let i = 0; i < 4; i++) html += `<i class="smoke" style="--dx:${(Math.random() * 80 - 40) | 0}px;animation-delay:${0.2 + i * 0.12}s"></i>`;
+  boom.innerHTML = html;
+  document.body.append(boom);
+  setTimeout(() => boom.remove(), 2200);
+  const stage = $('stage');
+  stage.classList.remove('shake');
+  void stage.offsetWidth;
+  stage.classList.add('shake');
+  stage.addEventListener('animationend', () => stage.classList.remove('shake'), { once: true });
+}
+$('bPower').onclick = () => setPower(!power);
 
 // Redraws the board itself as well (after switching, resizing or undoing).
 function showBoard(fit = true) {
@@ -172,6 +279,7 @@ function showBoard(fit = true) {
 }
 
 function switchBoard(board) {
+  if (power) setPower(false);
   app.board = board;
   app.selected = null;
   editor.cancel();
@@ -278,7 +386,8 @@ function setTool(tool) {
   for (const b of document.querySelectorAll('[data-tool]')) b.classList.toggle('active', b.dataset.tool === tool);
   const def = getDef(tool);
   $('stTool').textContent = !def ? (tool === 'erase' ? 'Borrar: toca un componente para quitarlo' : 'Mover: toca un componente para elegirlo, arrástralo para moverlo')
-    : TWO_PIN.has(def.kind) ? `${def.name}: arrastra de un agujero a otro, o toca los dos`
+    : TWO_PIN.has(def.kind) && def.polar ? `${def.name}: arrastra del ${def.shape === 'led' || def.kind === 'axial' && def.shape !== 'cell' ? 'ánodo (+) al cátodo (−)' : '+ al −'}, o toca los dos`
+      : TWO_PIN.has(def.kind) ? `${def.name}: arrastra de un agujero a otro, o toca los dos`
       : `${def.name}: toca la protoboard para colocarlo`;
   // On phones the Piezas tab shows which component is armed.
   const armed = def && tool !== 'wire';
@@ -401,6 +510,11 @@ function renderProps() {
     ? `De ${holeName(...part.pins[0])} a ${holeName(...part.pins[1])}`
     : `${part.pins.length} pines, el primero en ${holeName(...part.pins[0])}`;
   let html = `<div class="name">${esc(def.name)}</div><p class="hint pins">${esc(where)}</p>`;
+  const pol = POLARITY[def.shape] || (def.polar && POLARITY.source);
+  if (pol) {
+    html += `<dl class="polarity">${pol.map((label, i) => `<dt>${label}</dt><dd>${esc(holeName(...part.pins[i]))}</dd>`).join('')}</dl>`;
+    if (def.polar) html += `<button id="bFlip" class="flip">${ICON('swap')}Invertir polaridad</button>`;
+  }
   for (const f of def.fields || []) {
     html += f.type === 'color'
       ? `<div class="field">${f.label}<div class="swatches" data-key="${f.key}">${swatches(SWATCHES, props[f.key], true)}</div></div>`
@@ -408,6 +522,17 @@ function renderProps() {
   }
   $('propsBody').innerHTML = html + '<button id="bRemove" class="danger">Eliminar componente</button>';
 }
+
+// How to tell the pins of polarised parts apart, in pin order.
+const POLARITY = {
+  led: ['<span class="plus">+</span> Ánodo, pata larga', '− Cátodo, lado plano'],
+  diode: ['Ánodo', 'Cátodo, lado de la banda'],
+  zener: ['Ánodo', 'Cátodo, lado de la banda'],
+  electrolytic: ['<span class="plus">+</span> Pata larga', '− Lado de la franja'],
+  rgb: ['Rojo', '− Común, pata más larga', 'Verde', 'Azul'],
+  snap: ['<span class="plus">+</span> Cable rojo', '− Cable negro'],
+  source: ['<span class="plus">+</span> Positivo', '− Negativo'],
+};
 
 function setProp(k, v, done) {
   const part = app.board.parts.find(p => p.id === app.selected);
@@ -428,6 +553,11 @@ $('propsBody').addEventListener('change', e => {
 });
 $('propsBody').addEventListener('click', e => {
   if (e.target.id === 'bRemove') { setDrawer(null); return app.removePart(app.selected); }
+  if (e.target.closest('#bFlip')) {
+    const part = app.board.parts.find(p => p.id === app.selected);
+    if (part) { part.pins.reverse(); commit(); }
+    return;
+  }
   const c = e.target.dataset.color;
   if (c) setProp(e.target.parentElement.dataset.key, c, true);
 });
@@ -467,6 +597,7 @@ addEventListener('keydown', e => {
   else if (k === 'w') setTool('wire');
   else if (k === 'r') setTool('resistor');
   else if (k === 'l') setTool('led');
+  else if (k === 'p') setPower(!power);
 });
 
 // ---------- start ----------

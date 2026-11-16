@@ -40,6 +40,10 @@
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
     <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/></symbol>
+    <symbol id="i-bug" viewBox="0 0 24 24"><path d="M9 7.6V6.5a3 3 0 0 1 6 0v1.1M8.5 8h7A1.5 1.5 0 0 1 17 9.5V14a5 5 0 0 1-10 0V9.5A1.5 1.5 0 0 1 8.5 8zM12 12v7M3 13h4M17 13h4M4.5 7.5L7 9.5M19.5 7.5L17 9.5M4.5 19.5l3-2.2M19.5 19.5l-3-2.2"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5L2.5 20h19zM12 10v4.5M12 17.4v.1"/></symbol>
   </svg>
 
   <a class="skip" href="#stage">Saltar al lienzo</a>
@@ -109,6 +113,9 @@
             <button class="tb" id="bRedo" title="Rehacer (Ctrl+Y)" aria-label="Rehacer"><svg class="ico" aria-hidden="true"><use href="#i-redo"/></svg></button>
           </div>
           <div class="tbGroup">
+            <button class="tb tbWide" id="bPower" aria-pressed="false" aria-label="Probar el circuito" title="Conectar la batería y buscar fallos (P)"><svg class="ico" aria-hidden="true"><use href="#i-bolt"/></svg><span>Probar</span></button>
+          </div>
+          <div class="tbGroup">
             <button class="tb tbZoom" id="zOut" title="Alejar" aria-label="Alejar"><svg class="ico" aria-hidden="true"><use href="#i-minus"/></svg></button>
             <button class="tb" id="zFit" title="Ajustar a la vista" aria-label="Ajustar a la vista"><svg class="ico" aria-hidden="true"><use href="#i-fit"/></svg></button>
             <button class="tb tbZoom" id="zIn" title="Acercar" aria-label="Acercar"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg></button>
@@ -171,10 +178,31 @@
     <span id="stTool"></span>
     <span id="stHole"></span>
     <span class="grow"></span>
-    <span class="hint keys">Rueda para zoom, arrastra el fondo para mover la vista, Supr borra, Esc cancela</span>
+    <span class="hint keys">Rueda para zoom, arrastra el fondo para mover la vista, P prueba el circuito, Supr borra, Esc cancela</span>
   </footer>
 
   <div id="toast" role="status" aria-live="polite"></div>
+
+  <button id="bBug" popovertarget="bugPanel" title="Ver los fallos del circuito" hidden>
+    <svg class="ico" aria-hidden="true"><use href="#i-bug"/></svg><span id="bugCount"></span>
+  </button>
+  <div id="bugPanel" popover aria-labelledby="bugTitle">
+    <div class="bugHead">
+      <h2 id="bugTitle">Fallos del circuito</h2>
+      <button class="tb" popovertarget="bugPanel" popovertargetaction="hide" aria-label="Cerrar" title="Cerrar"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <ol id="bugList"></ol>
+    <p class="hint">Toca un fallo para seleccionar la pieza. Se simulan baterías, cables, resistencias, LED, diodos y condensadores; los circuitos integrados, módulos e interruptores no.</p>
+  </div>
+
+  <div id="shortWarn" role="alert" hidden>
+    <svg class="ico" aria-hidden="true"><use href="#i-alert"/></svg>
+    <div>
+      <b id="shortTitle">¡Cortocircuito!</b>
+      <p>La explosión es una exageración. En la vida real, a bajo voltaje, el cable se calienta, la batería se agota y puede llegar a quemarte los dedos. Igual no lo hagas.</p>
+    </div>
+    <button class="tb" id="shortClose" aria-label="Cerrar aviso" title="Cerrar aviso"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+  </div>
 
   <dialog id="aiDlg" aria-labelledby="aiTitle">
     <form method="dialog" class="dlgHead">

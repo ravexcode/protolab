@@ -21,6 +21,7 @@ Run `npm test` before every commit. CI runs it on Node 18, 20 and 22, and a gree
 | `js/catalog.js` | Component definitions (`kind` decides placement, `shape` decides drawing) |
 | `js/board.js` | Board geometry: holes, rails, footprints, hole names. Pure, no DOM |
 | `js/draw2d.js` | SVG markup for every part, plus `esc()` and `safeColor()` |
+| `js/sim.js` | DC test behind Probar: nets, node voltages, faults. Pure, no DOM |
 | `js/editor2d.js` | Pointer handling: place, select, move, pan, pinch zoom |
 | `js/view3d.js` | Three.js scene. Loaded lazily, so 2D works without WebGL |
 | `js/ai.js` | Tools exposed to agents and the link to the bridge |
@@ -33,6 +34,7 @@ Run `npm test` before every commit. CI runs it on Node 18, 20 and 22, and a gree
 
 - **Units.** Everything is in pitch units (1 = 2.54 mm). A hole is `[column, y]`: top rails y=0,1; rows a–e y=3..7; rows f–j y=10..14; bottom rails y=16,17. The same numbers drive 2D (x, y) and 3D (x, z).
 - **A part exists in three places.** Adding a `shape` means a catalog entry, a 2D drawing in `draw2d.js` and a 3D model in `view3d.js`. The catalog test fails if the 2D drawing emits `NaN` or `undefined`.
+- **Polarity.** For polarised two-pin parts (`polar: true` in the catalog) `pins[0]` is + or anode and `pins[1]` is − or cathode. The simulator, the drawings and Invertir polaridad all rely on it.
 - **User text is untrusted.** Board names, labels and values reach `innerHTML`. Pass them through `esc()`; pass colours through `safeColor()`. Imported JSON goes through `sanitizeBoard()`.
 - **Every edit is one undo step.** Mutate `app.board`, then call `commit()` once. It saves, records history and redraws 2D, 3D and the panels.
 - **Storage.** Boards live in `localStorage` under `protolab.v1`; the AI link settings under `protolab.ai`. Changing the shape of saved data needs a migration in `sanitizeBoard()`.

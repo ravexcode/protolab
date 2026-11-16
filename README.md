@@ -11,9 +11,10 @@ Editor de protoboards en el navegador: diseña en 2D, mira el resultado en 3D y 
 - **Editor 2D** (SVG): coloca, mueve, edita y borra componentes. Zoom con la rueda, arrastra el fondo para desplazarte.
 - **Vista 3D** (Three.js): la misma protoboard renderizada en 3D, con órbita, zoom y sombras. Se puede ver sola o junto al editor.
 - **Tamaño a elección**: Mini (170), Media (400), Completa (830), Doble (1660) o personalizado de 5 a 150 columnas, con rieles de alimentación en ambos lados, solo arriba o sin rieles, y varios colores.
-- **89 componentes**: cables, resistencias (con código de colores según el valor), condensadores, LEDs, diodos, transistores, reguladores, circuitos integrados DIP, pulsadores, displays, sensores, y placas como Arduino Nano, ESP32, NodeMCU y Raspberry Pi Pico.
+- **91 componentes**: cables, baterías (con broche tipo HW o directas), resistencias (con código de colores según el valor), condensadores, LEDs (con el ánodo marcado), diodos, transistores, reguladores, circuitos integrados DIP, pulsadores, displays, sensores, y placas como Arduino Nano, ESP32, NodeMCU y Raspberry Pi Pico.
 - **Varias protoboards**: crea, duplica, renombra y elimina. Exporta e importa en JSON.
 - **Guardado local**: todo se guarda en `localStorage` del navegador. No hay servidor ni cuentas.
+- **Probar el circuito**: conecta la batería y busca fallos (cortocircuitos, LED sin resistencia o al revés, resistencias que se calientan…). Los LED encendidos brillan, los fallos se listan en el botón del bicho y un corto acaba en una explosión exagerada a propósito.
 - Deshacer / rehacer y lista de materiales automática.
 - **Móvil y escritorio**: en el teléfono los paneles pasan a hojas inferiores, con zoom de pellizco. Tema claro y oscuro según el sistema.
 
@@ -55,6 +56,7 @@ Navegadores: Chrome, Edge y Firefox. Si el navegador pide permiso para acceder a
 | `V` | Seleccionar |
 | `E` | Borrar |
 | `W` / `R` / `L` | Cable / Resistencia / LED |
+| `P` | Probar el circuito |
 | `Supr` | Eliminar el componente seleccionado |
 | `Esc` | Cancelar |
 | `Ctrl+Z` / `Ctrl+Y` | Deshacer / Rehacer |
@@ -87,6 +89,7 @@ js/catalog.js     Catálogo de componentes
 js/board.js       Geometría de la protoboard
 js/draw2d.js      Dibujo SVG de cada componente
 js/editor2d.js    Editor 2D
+js/sim.js         Prueba del circuito en continua
 js/view3d.js      Vista 3D (Three.js)
 js/app.js         Estado, guardado, paneles
 js/ai.js          Enlace con agentes de IA

@@ -1,7 +1,7 @@
 // 2D SVG editor: placing, selecting, moving and deleting parts on the board.
 import { bounds, boardSVG, holeExists, holeName, stripRect, footprint, pinsValid, takenHoles, key } from './board.js';
 import { getDef } from './catalog.js';
-import { partSVG } from './draw2d.js';
+import { partSVG, safeColor, snapLayout } from './draw2d.js';
 
 const TWO_PIN = new Set(['wire', 'axial', 'radial']);
 
@@ -10,8 +10,8 @@ export class Editor2D {
   constructor(svg, app) {
     this.svg = svg;
     this.app = app;
-    svg.innerHTML = '<g></g><g></g><g></g><g></g>';
-    [this.lBoard, this.lHl, this.lParts, this.lOver] = svg.children;
+    svg.innerHTML = '<g></g><g></g><g></g><g pointer-events="none"></g><g></g>';
+    [this.lBoard, this.lHl, this.lParts, this.lSim, this.lOver] = svg.children;
     this.vb = { x: 0, y: 0, w: 10, h: 10 };
     this.hover = null;    // hole under the cursor
     this.pending = null;  // first hole of a two-pin part being placed
@@ -30,7 +30,14 @@ export class Editor2D {
   get board() { return this.app.board; }
 
   fit() {
-    const b = bounds(this.board), m = 1;
+    const b = { ...bounds(this.board) }, m = 1;
+    // Batteries with a snap clip lie beside the board; keep them in view.
+    for (const part of this.board.parts) {
+      if (getDef(part.type)?.shape !== 'snap') continue;
+      const L = snapLayout(part.pins);
+      b.y0 = Math.min(b.y0, L.y - L.len / 2);
+      b.y1 = Math.max(b.y1, L.y + L.len / 2);
+    }
     this.vb = { x: b.x0 - m, y: b.y0 - m, w: b.x1 - b.x0 + m * 2, h: b.y1 - b.y0 + m * 2 };
     this.applyView();
   }
@@ -73,7 +80,42 @@ export class Editor2D {
       const def = getDef(part.type);
       return `<g class="part" data-id="${part.id}">${partSVG(def, part.pins, part.props)}</g>`;
     }).join('');
+    this.renderSim();
     this.renderOverlay();
+  }
+
+  // Result of Probar: lit LEDs glow, faulty parts get a red outline.
+  renderSim() {
+    const sim = this.app.sim;
+    if (!sim) { this.lSim.innerHTML = ''; return; }
+    let s = '';
+    for (const part of this.board.parts) {
+      const level = sim.lit[part.id];
+      if (!level) continue;
+      const [a, b] = part.pins, x = (a[0] + b[0]) / 2, y = (a[1] + b[1]) / 2;
+      const c = safeColor(part.props.color || getDef(part.type).props.color, '#e53935');
+      s += `<circle cx="${x}" cy="${y}" r="1.9" fill="${c}" opacity="${(0.22 * level).toFixed(2)}"/>`
+        + `<circle cx="${x}" cy="${y}" r="1.05" fill="${c}" opacity="${(0.4 * level).toFixed(2)}"/>`
+        + `<circle cx="${x}" cy="${y}" r=".34" fill="#fff" opacity="${(0.85 * level).toFixed(2)}"/>`;
+    }
+    const bad = new Set(sim.faults.flatMap(f => f.parts));
+    for (const part of this.board.parts) {
+      if (!bad.has(part.id)) continue;
+      const xs = part.pins.map(q => q[0]), ys = part.pins.map(q => q[1]), pad = 0.7;
+      const x = Math.min(...xs) - pad, y = Math.min(...ys) - pad;
+      s += `<rect class="fault" x="${x}" y="${y}" width="${Math.max(...xs) + pad - x}" height="${Math.max(...ys) + pad - y}" rx=".35" fill="rgba(229,57,53,.12)" stroke="#ff5a4f" stroke-width=".12"/>`;
+    }
+    this.lSim.innerHTML = s;
+  }
+
+  // Screen position of a part, for effects drawn over the canvas. Null when 2D is hidden.
+  screenPoint(part) {
+    const m = this.svg.getScreenCTM();
+    if (!m || !this.svg.clientWidth) return null;
+    let [x, y] = [(part.pins[0][0] + part.pins[1][0]) / 2, (part.pins[0][1] + part.pins[1][1]) / 2];
+    if (getDef(part.type).shape === 'snap') ({ x, y } = snapLayout(part.pins));
+    const p = new DOMPoint(x, y).matrixTransform(m);
+    return { x: p.x, y: p.y };
   }
 
   // Pins a placement tool would create at the current hover position.
