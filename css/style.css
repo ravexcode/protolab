@@ -173,7 +173,10 @@ label input, label select { display: block; width: 100%; margin-top: 4px; color:
 .polarity dt { color: var(--muted); }
 .polarity dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
 .polarity .plus { color: var(--red); font-weight: 600; }
-.flip { display: flex; align-items: center; gap: 8px; width: 100%; justify-content: center; margin-bottom: 12px; }
+.flip, .press { display: flex; align-items: center; gap: 8px; width: 100%; justify-content: center; margin-bottom: 12px; }
+.press { margin-bottom: 6px; }
+.press[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.press + .hint { margin-bottom: 12px; }
 #bom { list-style: none; margin: 0; padding: 0; }
 #bom li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; }
 #bom li span:first-child { min-width: 0; overflow-wrap: anywhere; }
@@ -197,6 +200,7 @@ label input, label select { display: block; width: 100%; margin-top: 4px; color:
 #svg[data-mode="place"] { cursor: crosshair; }
 #svg[data-mode="place"] .part { pointer-events: none; }
 #svg[data-mode="select"] .part { cursor: move; }
+#svg[data-mode="select"] .cap { cursor: pointer; }
 #svg[data-mode="erase"] .part { cursor: not-allowed; }
 #svg[data-mode="erase"] .part:hover { opacity: .5; }
 #svg .handle { cursor: grab; }

@@ -83,3 +83,24 @@ test('two LEDs in series need enough voltage', () => {
   assert.equal(Object.keys(simulate(parts('3.7 V')).lit).length, 0);
   assert.equal(Object.keys(simulate(parts('9 V')).lit).length, 2);
 });
+
+test('a pushbutton closes the circuit only while pressed', () => {
+  const btn = part('button', ['f10', 'f12', 'e12', 'e10']), led = part('led', ['d16', 'd17']);
+  const b = board(part('battery9v', ['T+1', 'T-1']), part('wire', ['T+3', 'a10']), btn,
+    part('resistor', ['c12', 'c16'], { value: '470' }), led, part('wire', ['a17', 'T-17']));
+  assert.equal(simulate(b).lit[led.id], undefined, 'released: LED off');
+  const r = simulate(b, new Set([btn.id]));
+  assert.ok(r.lit[led.id] > 0.5, 'pressed: LED on');
+  assert.deepEqual(r.faults, []);
+});
+
+test('pressing a button straight across the battery is a short', () => {
+  const bat = part('battery9v', ['T+1', 'T-1']), btn = part('button', ['f10', 'f12', 'e12', 'e10']);
+  const b = board(bat, part('wire', ['T+3', 'a10']), btn, part('wire', ['a12', 'T-13']));
+  assert.equal(simulate(b).short, false);
+  const r = simulate(b, new Set([btn.id]));
+  assert.equal(r.short, true);
+  assert.ok(r.faults[0].parts.includes(btn.id));
+  assert.match(r.faults[0].text, /2 cables y un pulsador/);
+  assert.match(r.faults[0].text, /Suelta el pulsador/);
+});

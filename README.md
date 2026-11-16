@@ -14,7 +14,7 @@ Editor de protoboards en el navegador: diseña en 2D, mira el resultado en 3D y 
 - **91 componentes**: cables, baterías (con broche tipo HW o directas), resistencias (con código de colores según el valor), condensadores, LEDs (con el ánodo marcado), diodos, transistores, reguladores, circuitos integrados DIP, pulsadores, displays, sensores, y placas como Arduino Nano, ESP32, NodeMCU y Raspberry Pi Pico.
 - **Varias protoboards**: crea, duplica, renombra y elimina. Exporta e importa en JSON.
 - **Guardado local**: todo se guarda en `localStorage` del navegador. No hay servidor ni cuentas.
-- **Probar el circuito**: conecta la batería y busca fallos (cortocircuitos, LED sin resistencia o al revés, resistencias que se calientan…). Los LED encendidos brillan, los fallos se listan en el botón del bicho y un corto acaba en una explosión exagerada a propósito.
+- **Probar el circuito**: conecta la batería y busca fallos (cortocircuitos, LED sin resistencia o al revés, resistencias que se calientan…). Los pulsadores se pulsan y se sueltan tocándolos (en 2D o en 3D). Los LED encendidos brillan, los fallos se listan en el botón del bicho y un corto acaba en una explosión exagerada a propósito.
 - Deshacer / rehacer y lista de materiales automática.
 - **Móvil y escritorio**: en el teléfono los paneles pasan a hojas inferiores, con zoom de pellizco. Tema claro y oscuro según el sistema.
 
@@ -57,6 +57,7 @@ Navegadores: Chrome, Edge y Firefox. Si el navegador pide permiso para acceder a
 | `E` | Borrar |
 | `W` / `R` / `L` | Cable / Resistencia / LED |
 | `P` | Probar el circuito |
+| `Espacio` | Pulsar o soltar el pulsador elegido |
 | `Supr` | Eliminar el componente seleccionado |
 | `Esc` | Cancelar |
 | `Ctrl+Z` / `Ctrl+Y` | Deshacer / Rehacer |

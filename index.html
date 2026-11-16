@@ -43,6 +43,7 @@
     <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/></symbol>
     <symbol id="i-bug" viewBox="0 0 24 24"><path d="M9 7.6V6.5a3 3 0 0 1 6 0v1.1M8.5 8h7A1.5 1.5 0 0 1 17 9.5V14a5 5 0 0 1-10 0V9.5A1.5 1.5 0 0 1 8.5 8zM12 12v7M3 13h4M17 13h4M4.5 7.5L7 9.5M19.5 7.5L17 9.5M4.5 19.5l3-2.2M19.5 19.5l-3-2.2"/></symbol>
     <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4"/></symbol>
+    <symbol id="i-press" viewBox="0 0 24 24"><path d="M12 3v7M8.5 7L12 10.5 15.5 7M4 15h16v5H4zM8 15v-2h8v2"/></symbol>
     <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5L2.5 20h19zM12 10v4.5M12 17.4v.1"/></symbol>
   </svg>
 
@@ -178,7 +179,7 @@
     <span id="stTool"></span>
     <span id="stHole"></span>
     <span class="grow"></span>
-    <span class="hint keys">Rueda para zoom, arrastra el fondo para mover la vista, P prueba el circuito, Supr borra, Esc cancela</span>
+    <span class="hint keys">Rueda para zoom, arrastra el fondo para mover la vista, P prueba el circuito, Espacio pulsa el pulsador elegido, Supr borra, Esc cancela</span>
   </footer>
 
   <div id="toast" role="status" aria-live="polite"></div>
@@ -192,7 +193,7 @@
       <button class="tb" popovertarget="bugPanel" popovertargetaction="hide" aria-label="Cerrar" title="Cerrar"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <ol id="bugList"></ol>
-    <p class="hint">Toca un fallo para seleccionar la pieza. Se simulan baterías, cables, resistencias, LED, diodos y condensadores; los circuitos integrados, módulos e interruptores no.</p>
+    <p class="hint">Toca un fallo para seleccionar la pieza. Se simulan baterías, cables, pulsadores, resistencias, LED, diodos y condensadores; los circuitos integrados, los módulos y los demás interruptores no.</p>
   </div>
 
   <div id="shortWarn" role="alert" hidden>

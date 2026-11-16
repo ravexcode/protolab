@@ -78,7 +78,8 @@ export class Editor2D {
     const parts = [...this.board.parts].sort((a, b) => order[getDef(a.type).kind] - order[getDef(b.type).kind]);
     this.lParts.innerHTML = parts.map(part => {
       const def = getDef(part.type);
-      return `<g class="part" data-id="${part.id}">${partSVG(def, part.pins, part.props)}</g>`;
+      const props = this.app.pressed.has(part.id) ? { ...part.props, pressed: true } : part.props;
+      return `<g class="part" data-id="${part.id}">${partSVG(def, part.pins, props)}</g>`;
     }).join('');
     this.renderSim();
     this.renderOverlay();
@@ -211,7 +212,9 @@ export class Editor2D {
     } else if (partEl) {
       app.select(partEl.dataset.id);
       const part = this.board.parts.find(q => q.id === partEl.dataset.id);
-      this.drag = { type: 'move', from: [Math.round(p.x), Math.round(p.y)], origin: part.pins.map(q => [...q]), changed: false };
+      // Tapping a pushbutton's cap presses it; dragging still moves the part.
+      const cap = e.target.closest?.('.cap') ? part.id : null;
+      this.drag = { type: 'move', from: [Math.round(p.x), Math.round(p.y)], origin: part.pins.map(q => [...q]), changed: false, cap };
     } else {
       app.select(null);
       this.startPan(e);
@@ -295,6 +298,7 @@ export class Editor2D {
       const hole = this.holeAt(this.point(e)), def = getDef(this.app.tool);
       if (def && this.pending && hole && key(...hole) !== key(...this.pending)) this.placeTwoPin(def, hole);
     } else if (d.changed) this.app.commit();
+    else if (d.cap && e.type === 'pointerup') this.app.press(d.cap);
     if (e.pointerType !== 'mouse') {   // no hover on touch screens: clear the preview
       this.hover = null;
       this.renderOverlay();

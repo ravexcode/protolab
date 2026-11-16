@@ -110,7 +110,23 @@ function shortPath(conductors, from, to) {
   return ids;
 }
 
-export function simulate(board) {
+// "un cable", "2 cables y un pulsador": what joins a short, in words.
+function joinedBy(ids, board) {
+  const count = new Map();
+  for (const id of ids) {
+    const name = getDef(board.parts.find(q => q.id === id)?.type)?.name.toLowerCase() || 'pieza';
+    count.set(name, (count.get(name) || 0) + 1);
+  }
+  const words = [...count].map(([name, n]) => (n === 1 ? `un ${name}` : `${n} ${name}${/[aeiou]$/.test(name) ? 's' : 'es'}`));
+  return words.length > 1 ? `${words.slice(0, -1).join(', ')} y ${words.at(-1)}` : words[0];
+}
+
+// Footprint of a pushbutton: pins 0–3 go left-bottom, right-bottom, right-top, left-top.
+// The legs facing each other across the channel are always joined; pressing joins left and right.
+export const BUTTON_LINKS = { always: [[0, 3], [1, 2]], pressed: [[0, 1]] };
+
+// `pressed`: ids of the pushbuttons that are held down.
+export function simulate(board, pressed = new Set()) {
   const nets = unionFind();
   const elements = [], conductors = [], sources = [], faults = [];
   const fault = (kind, parts, title, text) => faults.push({ kind, parts, title, text });
@@ -123,6 +139,12 @@ export function simulate(board) {
     if (SHORTS.has(part.type)) {
       conductors.push({ id: part.id, strips });
       nets.join(strips[0], strips[1]);
+    } else if (def.shape === 'tact') {
+      const links = [...BUTTON_LINKS.always, ...(pressed.has(part.id) ? BUTTON_LINKS.pressed : [])];
+      for (const [a, b] of links) {
+        conductors.push({ id: part.id, strips: [strips[a], strips[b]] });
+        nets.join(strips[a], strips[b]);
+      }
     } else if (part.type in SOURCES) {
       const volts = parseVolts(p.value);
       if (volts == null) {
@@ -163,11 +185,12 @@ export function simulate(board) {
   const live = [];
   for (const s of sources) {
     if (nets.find(s.strips[0]) === nets.find(s.strips[1])) {
-      const path = shortPath(conductors, s.strips[0], s.strips[1]);
+      const path = [...new Set(shortPath(conductors, s.strips[0], s.strips[1]))];
+      const button = path.some(id => pressed.has(id));
       report.short = true;
       report.shortAt ??= s.part.id;
       fault('short', [s.part.id, ...path], `Cortocircuito en ${s.def.name.toLowerCase()}`,
-        `El + y el − están unidos ${path.length ? `por ${path.length === 1 ? 'un cable' : `${path.length} cables`}` : 'directamente'}, sin nada que limite la corriente. Quita ${path.length ? 'ese cable' : 'la unión'} o pon una carga en medio, como una resistencia.`);
+        `El + y el − están unidos ${path.length ? `por ${joinedBy(path, board)}` : 'directamente'}, sin nada que limite la corriente. ${button ? 'Suelta el pulsador o pon' : `Quita ${path.length ? 'esa unión' : 'la unión'} o pon`} una carga en medio, como una resistencia.`);
     } else live.push(s);
   }
 

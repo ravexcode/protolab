@@ -40,6 +40,23 @@ export class View3D {
     this.controls.maxPolarAngle = Math.PI / 2 - 0.03;
     this.controls.addEventListener('change', () => this.render());
 
+    // A click (not a drag to orbit) on a part reports it, so pushbuttons can be pressed in 3D.
+    this.onPick = null;
+    const el = this.renderer.domElement;
+    let down = null;
+    el.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
+    el.addEventListener('pointerup', e => {
+      if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5 || !this.root || !this.onPick) return;
+      const r = el.getBoundingClientRect();
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), this.camera);
+      for (const hit of ray.intersectObjects(this.root.children, true)) {
+        let o = hit.object;
+        while (o && !o.userData.partId) o = o.parent;
+        if (o) return this.onPick(o.userData.partId);
+      }
+    });
+
     this.sun = new THREE.DirectionalLight('#ffffff', 2.2);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
@@ -84,7 +101,7 @@ export class View3D {
 
   render() { this.renderer.render(this.scene, this.camera); }
 
-  setBoard(board, sim = null) {
+  setBoard(board, sim = null, pressed = new Set()) {
     this.sim = sim;
     if (this.root) {
       this.scene.remove(this.root);
@@ -98,7 +115,8 @@ export class View3D {
       const def = getDef(part.type);
       if (!def) continue;
       const g = new THREE.Group();
-      this[def.kind](g, def, part.pins, { ...def.props, ...part.props }, part);
+      g.userData.partId = part.id;
+      this[def.kind](g, def, part.pins, { ...def.props, ...part.props, pressed: pressed.has(part.id) }, part);
       this.root.add(g);
     }
     this.root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -450,7 +468,8 @@ export class View3D {
         local.forEach(([x, z]) => { this.leg(g, x, z, 0.5); this.seg(g, V(x, 0.5, z), V(Math.sign(x) * 1.1, 0.5, Math.sign(z) * 1.1)); });
         this.box(g, 2.6, 1.3, 2.6, mat('#2a2a2c'), 0, 0.95, 0);
         this.box(g, 2.7, 0.08, 2.7, METAL, 0, 1.62, 0);
-        this.cyl(g, 0.8, 0.6, mat(safeColor(p.color, '#e53935')), 0, 1.95, 0);
+        if (p.pressed) this.cyl(g, 0.8, 0.22, mat(safeColor(p.color, '#e53935')), 0, 1.77, 0);
+        else this.cyl(g, 0.8, 0.6, mat(safeColor(p.color, '#e53935')), 0, 1.95, 0);
         break;
       case 'dipsw':
         flat();

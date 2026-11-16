@@ -158,6 +158,16 @@ function inline(def, pins, p) {
   }
 }
 
+// The cap of a pushbutton is what the user taps to press it. Pressed, it sinks and a green ring shows it is closed.
+function tactCap(cx, cy, color, pressed) {
+  if (pressed) {
+    return `<g class="cap"><circle cx="${cx}" cy="${cy}" r="1.02" fill="none" stroke="#43d16b" stroke-width=".12"/>`
+      + `<circle cx="${cx}" cy="${cy}" r=".66" fill="${color}" stroke="rgba(0,0,0,.6)" stroke-width=".16"/></g>`;
+  }
+  return `<g class="cap"><circle cx="${cx}" cy="${cy}" r=".8" fill="${color}" ${OUTLINE}/>`
+    + `<circle cx="${n(cx - 0.22)}" cy="${n(cy - 0.22)}" r=".22" fill="#fff" opacity=".35"/></g>`;
+}
+
 function dual(def, pins, p) {
   const nPins = def.n;
   const xL = pins[0][0], xR = pins[nPins - 1][0], yB = pins[0][1], yT = pins[nPins][1];
@@ -168,7 +178,7 @@ function dual(def, pins, p) {
     case 'tact':
       return pins.map(q => lead(q, [q[0] < cx ? cx - 1 : cx + 1, q[1] < cy ? cy - 1 : cy + 1]) + dot(q)).join('')
         + rect(cx - 1.3, cy - 1.3, 2.6, 2.6, '#2a2a2c', `rx=".2" ${OUTLINE}`)
-        + `<circle cx="${cx}" cy="${cy}" r=".8" fill="${safeColor(p.color, '#e53935')}" ${OUTLINE}/>`;
+        + tactCap(cx, cy, safeColor(p.color, '#e53935'), p.pressed);
     case 'dipsw':
       return stubs + body('#c62828') + pins.slice(0, nPins).map(([x]) =>
         rect(x - 0.22, cy - 0.55, 0.44, 1.1, 'rgba(0,0,0,.35)') + rect(x - 0.22, cy - 0.55, 0.44, 0.55, '#fff')).join('');

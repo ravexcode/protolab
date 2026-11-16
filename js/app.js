@@ -108,6 +108,15 @@ const app = {
   tool: 'select',
   selected: null,
   sim: null,          // result of Probar while the circuit is powered
+  // Pushbuttons held down. How the circuit is being used, not an edit: not saved, not undone.
+  pressed: new Set(),
+  press(id) {
+    const part = app.board.parts.find(p => p.id === id);
+    if (getDef(part?.type)?.shape !== 'tact') return;
+    if (!app.pressed.delete(id)) app.pressed.add(id);
+    app.selected = id;
+    refresh();
+  },
   addPart(type, pins) {
     const part = { id: uid(), type, pins, props: { ...lastProps[type] } };
     app.board.parts.push(part);
@@ -115,6 +124,7 @@ const app = {
     commit();
   },
   removePart(id) {
+    app.pressed.delete(id);
     app.board.parts = app.board.parts.filter(p => p.id !== id);
     if (app.selected === id) app.selected = null;
     commit();
@@ -164,7 +174,7 @@ function refresh() {
   $('bRedo').disabled = hist.i === hist.stack.length - 1;
   $('empty').hidden = app.board.parts.length > 0;
   if (power) runTest();
-  if (view3d && store.view !== '2d') view3d.setBoard(app.board, app.sim);
+  if (view3d && store.view !== '2d') view3d.setBoard(app.board, app.sim, app.pressed);
 }
 
 // ---------- circuit test ----------
@@ -182,7 +192,7 @@ function setPower(on) {
     showShort(false);
     renderBug();
     editor.renderSim();
-    if (view3d && store.view !== '2d') view3d.setBoard(app.board, null);
+    if (view3d && store.view !== '2d') view3d.setBoard(app.board, null, app.pressed);
     return;
   }
   app.sim = null;
@@ -196,7 +206,7 @@ function setPower(on) {
 
 function runTest() {
   const before = app.sim;
-  const sim = app.sim = simulate(app.board);
+  const sim = app.sim = simulate(app.board, app.pressed);
   if (!app.board.parts.some(p => SOURCE_TYPES.has(p.type))) {
     power = false;
     app.sim = null;
@@ -280,6 +290,7 @@ function showBoard(fit = true) {
 
 function switchBoard(board) {
   if (power) setPower(false);
+  app.pressed.clear();
   app.board = board;
   app.selected = null;
   editor.cancel();
@@ -359,6 +370,12 @@ function ensure3D() {
   if (view3d) return Promise.resolve();
   loading3d ??= import('./view3d.js').then(m => {
     view3d = new m.View3D($('pane3d'));
+    // Clicking a part in 3D presses it if it is a pushbutton, otherwise selects it.
+    view3d.onPick = id => {
+      const part = app.board.parts.find(p => p.id === id);
+      if (getDef(part?.type)?.shape === 'tact') app.press(id);
+      else if (part) app.select(id);
+    };
   }).catch(err => {
     console.error(err);
     $('msg3d').hidden = false;
@@ -510,6 +527,11 @@ function renderProps() {
     ? `De ${holeName(...part.pins[0])} a ${holeName(...part.pins[1])}`
     : `${part.pins.length} pines, el primero en ${holeName(...part.pins[0])}`;
   let html = `<div class="name">${esc(def.name)}</div><p class="hint pins">${esc(where)}</p>`;
+  if (def.shape === 'tact') {
+    const on = app.pressed.has(part.id);
+    html += `<button id="bPress" class="press" aria-pressed="${on}">${ICON('press')}Pulsar</button>`
+      + `<p class="hint">${on ? 'Pulsado: une el lado izquierdo con el derecho.' : 'Suelto: los lados izquierdo y derecho están separados.'} También puedes tocar el botón en la protoboard o pulsar Espacio.</p>`;
+  }
   const pol = POLARITY[def.shape] || (def.polar && POLARITY.source);
   if (pol) {
     html += `<dl class="polarity">${pol.map((label, i) => `<dt>${label}</dt><dd>${esc(holeName(...part.pins[i]))}</dd>`).join('')}</dl>`;
@@ -553,9 +575,11 @@ $('propsBody').addEventListener('change', e => {
 });
 $('propsBody').addEventListener('click', e => {
   if (e.target.id === 'bRemove') { setDrawer(null); return app.removePart(app.selected); }
+  // Both rebuild the inspector, so focus goes back to the new copy of the button.
+  if (e.target.closest('#bPress')) { app.press(app.selected); $('bPress')?.focus(); return; }
   if (e.target.closest('#bFlip')) {
     const part = app.board.parts.find(p => p.id === app.selected);
-    if (part) { part.pins.reverse(); commit(); }
+    if (part) { part.pins.reverse(); commit(); $('bFlip')?.focus(); }
     return;
   }
   const c = e.target.dataset.color;
@@ -598,6 +622,7 @@ addEventListener('keydown', e => {
   else if (k === 'r') setTool('resistor');
   else if (k === 'l') setTool('led');
   else if (k === 'p') setPower(!power);
+  else if (k === ' ' && app.selected && !e.target.closest?.('button, a')) { e.preventDefault(); app.press(app.selected); }
 });
 
 // ---------- start ----------
