@@ -12,8 +12,9 @@ export const SWATCHES = ['#e53935', '#fb8c00', '#fdd835', '#43a047', '#1e88e5', 
 const COLOR = { key: 'color', label: 'Color', type: 'color' };
 const LABEL = { key: 'label', label: 'Etiqueta', type: 'text' };
 const value = (label, ph) => ({ key: 'value', label, type: 'text', ph });
+const VOLTS = value('Voltaje (V)', '9, 3.7, 5');
 
-const two = (type, name, kind, shape, props = {}, fields = []) => ({ type, name, kind, shape, props, fields });
+const two = (type, name, kind, shape, props = {}, fields = [], o = {}) => ({ type, name, kind, shape, props, fields, ...o });
 const inl = (type, name, shape, n, o = {}) =>
   ({ type, name, kind: 'inline', shape, n, props: { label: name }, fields: [LABEL], ...o });
 const dual = (type, name, shape, n, span, o = {}) =>
@@ -40,13 +41,18 @@ export const CATALOG = [
     inl('header4', 'Tira de pines 1×4', 'header', 4, { fields: [] }),
     inl('header6', 'Tira de pines 1×6', 'header', 6, { fields: [] }),
     inl('header8', 'Tira de pines 1×8', 'header', 8, { fields: [] }),
-    two('jack', 'Jack DC', 'radial', 'jack'),
-    two('coin', 'Pila de botón CR2032', 'radial', 'coin'),
+  ] },
+  // Sources: pins[0] is +, pins[1] is −. They power the circuit in Probar.
+  { cat: 'Alimentación', items: [
+    two('battery9v', 'Batería con broche', 'radial', 'snap', { value: '9 V' }, [VOLTS], { desc: 'Conector tipo HW, cables al + y al −', polar: true }),
+    two('cell', 'Batería directa', 'axial', 'cell', { value: '3.7 V' }, [VOLTS], { desc: 'Sus terminales van a la protoboard', polar: true }),
+    two('coin', 'Pila de botón CR2032', 'radial', 'coin', { value: '3 V' }, [VOLTS], { polar: true }),
+    two('jack', 'Jack DC', 'radial', 'jack', { value: '9 V' }, [VOLTS], { desc: 'Entrada de un adaptador', polar: true }),
   ] },
   { cat: 'Pasivos', items: [
     two('resistor', 'Resistencia', 'axial', 'resistor', { value: '220' }, [value('Valor (Ω)', '220, 4.7k, 1M')]),
     two('ceramic', 'Condensador cerámico', 'radial', 'ceramic', { value: '100nF' }, [value('Valor', '100nF')]),
-    two('electrolytic', 'Condensador electrolítico', 'radial', 'electrolytic', { value: '100µF' }, [value('Valor', '100µF')]),
+    two('electrolytic', 'Condensador electrolítico', 'radial', 'electrolytic', { value: '100µF' }, [value('Valor', '100µF')], { polar: true }),
     two('inductor', 'Inductor', 'axial', 'inductor', { value: '10mH' }, [value('Valor', '10mH')]),
     inl('pot', 'Potenciómetro', 'pot', 3, { props: { label: '10k' } }),
     two('fuse', 'Fusible', 'axial', 'fuse'),
@@ -55,11 +61,11 @@ export const CATALOG = [
     two('thermistor', 'Termistor NTC', 'radial', 'thermistor'),
   ] },
   { cat: 'Semiconductores', items: [
-    two('led', 'LED', 'radial', 'led', { color: '#e53935' }, [COLOR]),
+    two('led', 'LED', 'radial', 'led', { color: '#e53935' }, [COLOR], { polar: true }),
     inl('rgb', 'LED RGB', 'rgb', 4, { fields: [] }),
-    two('irled', 'LED infrarrojo', 'radial', 'led', { color: '#7986cb' }),
-    two('diode', 'Diodo 1N4007', 'axial', 'diode'),
-    two('zener', 'Diodo Zener', 'axial', 'zener'),
+    two('irled', 'LED infrarrojo', 'radial', 'led', { color: '#7986cb' }, [], { polar: true }),
+    two('diode', 'Diodo 1N4007', 'axial', 'diode', {}, [], { polar: true }),
+    two('zener', 'Diodo Zener', 'axial', 'zener', {}, [], { desc: '5.1 V', polar: true }),
     inl('npn', 'Transistor NPN', 'to92', 3, { props: { label: '2N2222' } }),
     inl('pnp', 'Transistor PNP', 'to92', 3, { props: { label: '2N3906' } }),
     inl('mosfet92', 'MOSFET 2N7000', 'to92', 3, { props: { label: '2N7000' } }),

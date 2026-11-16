@@ -7,7 +7,7 @@ export const esc = s => String(s ?? '').replace(/[&<>"']/g, ch =>
 export const safeColor = (c, fallback = '#888888') => (/^#[0-9a-fA-F]{6}$/.test(c || '') ? c : fallback);
 
 const n = v => +(+v).toFixed(3);
-const METAL = '#b9bcc2', DARK = '#1d1d1f';
+const METAL = '#b9bcc2', DARK = '#1d1d1f', ANODE = '#d32f2f';
 const lead = (a, b) => `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${METAL}" stroke-width=".14" stroke-linecap="round"/>`;
 const dot = (p, fill = '#d5d8de') => `<circle cx="${p[0]}" cy="${p[1]}" r=".17" fill="${fill}" stroke="rgba(0,0,0,.55)" stroke-width=".04"/>`;
 const rect = (x, y, w, h, fill, extra = '') => `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" fill="${fill}" ${extra}/>`;
@@ -34,7 +34,20 @@ function wire(pins, p) {
   return line('rgba(0,0,0,.55)', 0.44) + line(c, 0.32) + dot(a) + dot(b);
 }
 
+// A cylindrical cell lying between its two terminals: + nub at pin 0, flat − at pin 1.
+function cell(pins, p) {
+  const g = span(pins), bl = Math.max(0.9, g.len - 0.55), h = 1.15;
+  const s = rect(-bl / 2, -h / 2, bl, h, '#1f6f43', `rx=".2" ${OUTLINE}`)
+    + rect(bl / 2 - 0.2, -h / 2, 0.2, h, METAL)
+    + rect(-bl / 2 - 0.16, -0.24, 0.2, 0.48, METAL, `rx=".05" ${OUTLINE}`)
+    + rect(-bl / 2 + 0.12, -h / 2, 0.12, h, '#e0a526')
+    + (bl > 2.4 ? text(0.1, 0, p.value, bl - 1.4, 0.6, '#fff') : '')
+    + `<path d="M${n(-bl / 2 + 0.38)} 0h.36M${n(-bl / 2 + 0.56)} -.18v.36" stroke="#fff" stroke-width=".09"/>`;
+  return lead(pins[0], pins[1]) + at(g, s) + dot(pins[0]) + dot(pins[1]);
+}
+
 function axial(def, pins, p) {
+  if (def.shape === 'cell') return cell(pins, p);
   const g = span(pins), bl = Math.max(0.8, Math.min(g.len - 0.7, 2.6)), h = 0.76;
   const body = (fill, extra = OUTLINE) => rect(-bl / 2, -h / 2, bl, h, fill, `rx=".3" ${extra}`);
   const band = (t, fill, w = 0.13) => rect(t * bl - w / 2, -h / 2, w, h, fill);
@@ -50,10 +63,16 @@ function axial(def, pins, p) {
   return lead(pins[0], pins[1]) + at(g, s) + dot(pins[0]) + dot(pins[1]);
 }
 
+// Red + in the gap between four holes, so it never hides a pin.
+const plusMark = (x, y) => `<path d="M${n(x - 0.17)} ${n(y)}h.34M${n(x)} ${n(y - 0.17)}v.34" stroke="${ANODE}" stroke-width=".11" stroke-linecap="round"/>`;
+
 const RADIAL = {
-  led: p => {
+  // The rim has a flat on the cathode side (pin 1, local +x); a red + marks the anode (pin 0).
+  led: (p, g) => {
     const c = safeColor(p.color, '#e53935');
-    return `<circle r=".62" fill="${c}" ${OUTLINE}/><circle cx="-.17" cy="-.17" r=".24" fill="#fff" opacity=".4"/>`;
+    return `<path d="M.5-.49A.7.7 0 1 0 .5.49Z" fill="${c}" ${OUTLINE}/><circle r=".55" fill="${c}" stroke="rgba(0,0,0,.25)" stroke-width=".04"/>`
+      + `<circle cx="-.17" cy="-.17" r=".22" fill="#fff" opacity=".4"/>`
+      + plusMark(-g.len / 2 - 0.5, -0.5);
   },
   ceramic: () => `<ellipse rx=".65" ry=".28" fill="#d98a2b" ${OUTLINE}/>`,
   thermistor: () => `<ellipse rx=".6" ry=".3" fill="#2e7d32" ${OUTLINE}/>`,
@@ -65,12 +84,41 @@ const RADIAL = {
   ldr: () => `<circle r=".65" fill="#c9753d" ${OUTLINE}/><polyline points="-.4,-.15 -.2,.15 0,-.15 .2,.15 .4,-.15" fill="none" stroke="#f3e2c0" stroke-width=".07"/>`,
   mic: () => `<circle r=".75" fill="#b0b5bd" ${OUTLINE}/><circle r=".5" fill="#222"/>`,
   motor: () => `<circle r="1.3" fill="#9aa0a8" ${OUTLINE}/><circle r=".9" fill="none" stroke="#7d838c" stroke-width=".07"/><circle r=".2" fill="#555"/>`,
-  jack: () => rect(-1, -0.9, 2, 1.8, '#1b1b1b', `rx=".12" ${OUTLINE}`) + `<circle r=".45" fill="#000" stroke="#666" stroke-width=".08"/><circle r=".12" fill="#c9ccd2"/>`,
-  coin: () => `<circle r="1.6" fill="#cfd3da" ${OUTLINE}/><circle r="1.3" fill="none" stroke="#9aa0a8" stroke-width=".06"/>${text(0, 0, '+', 2, 1, '#666')}`,
+  jack: (p, g) => `<path d="M${n(-g.len / 2 - 0.22)} -1.3h.44M${n(-g.len / 2)} -1.52v.44" stroke="${ANODE}" stroke-width=".13" stroke-linecap="round"/>` + rect(-1, -0.9, 2, 1.8, '#1b1b1b', `rx=".12" ${OUTLINE}`) + `<circle r=".45" fill="#000" stroke="#666" stroke-width=".08"/><circle r=".12" fill="#c9ccd2"/>`,
+  coin: (p, g) => `<circle r="1.6" fill="#cfd3da" ${OUTLINE}/><circle r="1.3" fill="none" stroke="#9aa0a8" stroke-width=".06"/>${text(0, 0, '+', 2, 1, '#666')}`
+    + `<path d="M${n(-g.len / 2 - 0.22)} -1.95h.44M${n(-g.len / 2)} -2.17v.44" stroke="${ANODE}" stroke-width=".13" stroke-linecap="round"/>`,
 };
 
+// Where the body of a battery with snap clip lies: beside the board, on the side nearest its pins.
+// Shared with the 3D view. `end` is the y of the clip, `dir` points from the clip into the battery.
+export function snapLayout(pins) {
+  const mx = (pins[0][0] + pins[1][0]) / 2, my = (pins[0][1] + pins[1][1]) / 2;
+  const dir = my < 8.5 ? -1 : 1, len = 6.5, w = 3.6;
+  const end = dir < 0 ? -2.25 : 19.25;
+  return { x: mx, y: end + dir * len / 2, end, dir, len, w, plus: [mx - 0.75, end], minus: [mx + 0.75, end] };
+}
+
+function snap(pins, p) {
+  const L = snapLayout(pins), { x, y, w, len, dir, end } = L;
+  const cable = (from, to, color) => {
+    const c1 = [from[0], from[1] + dir * 2.2], c2 = [to[0], to[1] - dir * 2.2];
+    const d = `M${n(from[0])} ${n(from[1])}C${n(c1[0])} ${n(c1[1])} ${n(c2[0])} ${n(c2[1])} ${n(to[0])} ${n(to[1])}`;
+    return `<path d="${d}" fill="none" stroke="rgba(0,0,0,.5)" stroke-width=".36" stroke-linecap="round"/>`
+      + `<path d="${d}" fill="none" stroke="${color}" stroke-width=".24" stroke-linecap="round"/>`;
+  };
+  const top = y - len / 2, label = dir < 0 ? top + 0.5 : end + 1.5;
+  return rect(x - w / 2, top, w, len, '#2b2b2e', `rx=".35" ${OUTLINE}`)
+    + rect(x - w / 2, label, w, len - 2, '#e0a526')
+    + text(x, label + (len - 2) / 2, p.value, w - 0.6, 1.1, '#1b1b1d')
+    + rect(x - w / 2 + 0.2, dir < 0 ? end - 0.9 : end - 0.1, w - 0.4, 1, DARK, `rx=".2" ${OUTLINE}`)
+    + cable(pins[0], L.plus, '#e53935') + cable(pins[1], L.minus, '#222222')
+    + dot(pins[0]) + dot(pins[1]);
+}
+
 function radial(def, pins, p) {
-  return lead(pins[0], pins[1]) + dot(pins[0]) + dot(pins[1]) + at(span(pins), RADIAL[def.shape](p));
+  if (def.shape === 'snap') return snap(pins, p);
+  const g = span(pins);
+  return lead(pins[0], pins[1]) + dot(pins[0]) + dot(pins[1]) + at(g, RADIAL[def.shape](p, g));
 }
 
 function inline(def, pins, p) {
@@ -164,7 +212,8 @@ export function iconSVG(def) {
     const w = Math.max(def.w || 0, Math.max(...xs) - Math.min(...xs) + 2.4) + 0.6;
     const h = Math.max(Math.max(...ys) - Math.min(...ys) + 2.2, def.kind === 'inline' ? 3.4 : 0);
     box = [cx - w / 2, cy - h / 2 + (def.shape === 'module' && def.extra ? 0.6 : 0), w, h];
-  } else if (def.kind === 'radial') { pins = [[0, 0], [1, 0]]; box = [-1.5, -2, 4, 4]; }
+  } else if (def.shape === 'snap') { pins = [[0, 1], [1, 1]]; box = [-2.8, -8.8, 6.6, 10.6]; }
+  else if (def.kind === 'radial') { pins = [[0, 0], [1, 0]]; box = [-1.5, -2, 4, 4]; }
   else { pins = [[0, 0], [3, 0]]; box = [-0.6, -1.4, 4.2, 2.8]; }
   return `<svg viewBox="${box.map(n).join(' ')}" font-family="system-ui,sans-serif">${partSVG(def, pins, {})}</svg>`;
 }

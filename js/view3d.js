@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { bounds, holes, railLines, labels, inkFor } from './board.js';
 import { getDef, resistorBands } from './catalog.js';
-import { safeColor } from './draw2d.js';
+import { safeColor, snapLayout } from './draw2d.js';
 
 const BOARD_H = 3.4;
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -84,7 +84,8 @@ export class View3D {
 
   render() { this.renderer.render(this.scene, this.camera); }
 
-  setBoard(board) {
+  setBoard(board, sim = null) {
+    this.sim = sim;
     if (this.root) {
       this.scene.remove(this.root);
       this.root.traverse(o => o.geometry?.dispose());
@@ -224,7 +225,15 @@ export class View3D {
     body.quaternion.setFromUnitVectors(UP, b.clone().sub(a).normalize());
     g.add(body);
     const band = (t, color, r, w = 0.14) => this.cyl(body, r + 0.015, w, mat(color), 0, t * bl, 0);
-    if (def.shape === 'resistor') {
+    if (def.shape === 'cell') {
+      // Body axis runs from pin 0 (+) to pin 1 (−), so -y is the + end.
+      const cl = Math.max(0.9, len - 0.55);
+      body.position.setY(0.75);
+      this.cyl(body, 0.56, cl, mat('#1f6f43', { roughness: 0.35 }), 0, 0, 0);
+      this.cyl(body, 0.57, 0.14, mat('#e0a526'), 0, -cl / 2 + 0.2, 0);
+      this.cyl(body, 0.5, 0.06, METAL, 0, cl / 2, 0);
+      this.cyl(body, 0.22, 0.2, METAL, 0, -cl / 2 - 0.1, 0);
+    } else if (def.shape === 'resistor') {
       this.cyl(body, 0.38, bl, mat('#d8b98a'), 0, 0, 0);
       const c = resistorBands(p.value);
       [-0.3, -0.14, 0.02, 0.3].forEach((t, i) => band(t, c[i], 0.38));
@@ -238,13 +247,38 @@ export class View3D {
     }
   }
 
-  radial(g, def, pins, p) {
+  // Battery lying on the desk beside the board, with red and black leads to its two holes.
+  snap(g, pins, p) {
+    const L = snapLayout(pins), h = 2.5, y = -BOARD_H + h / 2;
+    this.leg(g, pins[0][0], pins[0][1], 0.3);
+    this.leg(g, pins[1][0], pins[1][1], 0.3);
+    this.box(g, L.w, h, L.len, mat('#2b2b2e', { roughness: 0.4 }), L.x, y, L.y);
+    this.faceBox(g, L.w + 0.04, h + 0.02, L.len - 2, mat('#e0a526'), 2, this.label('#e0a526', p.value, '#1b1b1d'),
+      L.x, y, L.y + L.dir * 0.5);
+    this.box(g, L.w + 0.06, h - 0.3, 1, DARK, L.x, y, L.end + L.dir * 0.4);
+    [['#e53935', pins[0], L.plus], ['#222222', pins[1], L.minus]].forEach(([color, pin, to]) => {
+      const z = to[1] - L.dir * 0.1;
+      const curve = new THREE.CatmullRomCurve3([
+        V(pin[0], 0.3, pin[1]), V(pin[0], 1.6, pin[1]),
+        V((pin[0] + to[0]) / 2, 0.7, z - L.dir * 0.5), V(to[0], y + 0.3, z)]);
+      this.mesh(g, new THREE.TubeGeometry(curve, 32, 0.13, 8), mat(color, { roughness: 0.45 }));
+    });
+  }
+
+  radial(g, def, pins, p, part) {
+    if (def.shape === 'snap') return this.snap(g, pins, p);
     const a = V(pins[0][0], 0, pins[0][1]), b = V(pins[1][0], 0, pins[1][1]);
     const mid = a.clone().lerp(b, 0.5), dir = b.clone().sub(a).normalize();
     const base = { led: 1.3, electrolytic: 0.6, buzzer: 0.5, speaker: 0.5, motor: 0.6, jack: 0.4, coin: 0.6 }[def.shape] ?? 1.1;
     for (const [pin, sign] of [[a, -1], [b, 1]]) {
       this.leg(g, pin.x, pin.z, 0.3);
-      this.seg(g, pin.clone().setY(0.3), mid.clone().addScaledVector(dir, sign * 0.25).setY(base));
+      const top = mid.clone().addScaledVector(dir, sign * 0.25).setY(base);
+      if (def.shape === 'led' && sign < 0) {
+        // The anode is the long leg; on the board it shows as a kink.
+        const knee = pin.clone().lerp(top, 0.5).setY(base * 0.55).addScaledVector(dir, -0.35);
+        this.seg(g, pin.clone().setY(0.3), knee);
+        this.seg(g, knee, top);
+      } else this.seg(g, pin.clone().setY(0.3), top);
     }
     const body = new THREE.Group();     // local X runs from pin 0 to pin 1
     body.position.copy(mid).setY(base);
@@ -252,9 +286,15 @@ export class View3D {
     g.add(body);
     switch (def.shape) {
       case 'led': {
-        const c = safeColor(p.color, '#e53935');
-        const m = mat(c, { transparent: true, opacity: 0.88, emissive: c, emissiveIntensity: 0.55, roughness: 0.2 });
-        this.cyl(body, 0.62, 0.18, m, 0, 0.09, 0);
+        const c = safeColor(p.color, '#e53935'), lit = this.sim?.lit[part?.id] || 0;
+        const m = mat(c, { transparent: true, opacity: 0.88, emissive: c, emissiveIntensity: this.sim ? 0.15 + lit * 2.2 : 0.55, roughness: 0.2 });
+        // Rim with a flat on the cathode side (local +x, towards pin 1).
+        const rim = new THREE.Shape(), a0 = Math.acos(0.5 / 0.7);
+        rim.absarc(0, 0, 0.7, a0, Math.PI * 2 - a0, false);
+        rim.closePath();
+        const geo = new THREE.ExtrudeGeometry(rim, { depth: 0.18, bevelEnabled: false });
+        geo.rotateX(-Math.PI / 2);
+        this.mesh(body, geo, m, 0, 0, 0);
         this.cyl(body, 0.52, 0.8, m, 0, 0.5, 0);
         this.mesh(body, new THREE.SphereGeometry(0.52, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), m, 0, 0.9, 0);
         break;

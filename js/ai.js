@@ -59,7 +59,8 @@ export function createTools({ store, app, editor, uid, sanitizeBoard, switchBoar
       const q = String(query || '').toLowerCase(), components = [];
       for (const group of CATALOG) for (const d of group.items) {
         if (q && !`${d.type} ${d.name} ${d.desc || ''} ${group.cat}`.toLowerCase().includes(q)) continue;
-        const place = TWO_PIN.has(d.kind) ? 'pins: [hole, hole]'
+        const place = TWO_PIN.has(d.kind) && d.polar ? 'pins: [+ or anode hole, − or cathode hole]'
+          : TWO_PIN.has(d.kind) ? 'pins: [hole, hole]'
           : d.kind === 'inline' ? `at: pin 1 of ${d.n} pins in a row`
             : `at: pin 1 of a DIP, ${d.n} pins per row${d.step > 1 ? `, ${d.step} columns apart` : ''}`;
         const props = (d.fields || []).map(f => f.key);
