@@ -1,6 +1,6 @@
 // DC test of a board: finds the nets, solves node voltages and reports faults.
-// Pure, no DOM. Sources, resistors, LEDs and diodes are simulated; ICs, modules
-// and switches are left out (their pins simply float).
+// Pure, no DOM. Sources, resistors, LEDs, diodes, pushbuttons and the logic-gate
+// chips in LOGIC are simulated; other ICs and modules are left out (their pins float).
 //
 // Pin order of polarised parts: pins[0] is + / anode, pins[1] is − / cathode.
 import { getDef, parseOhms } from './catalog.js';
@@ -14,6 +14,26 @@ const LED_MAX = 0.03, LED_FULL = 0.015, RES_WATTS = 0.25;
 const SOURCES = { battery9v: 1.5, cell: 0.1, coin: 15, jack: 0.5 };
 const SHORTS = new Set(['wire', 'fuse', 'inductor']);
 const LOADS = { ldr: 10e3, thermistor: 10e3, motor: 20, buzzer: 200, speaker: 8 };
+
+// Logic-gate chips. Each gate lists its input pins and then its output pin (pin 1 is
+// part.pins[0]). An output drives its pin through `rout` ohms to the chip's VCC or GND
+// pin, so it sources and sinks real current. Supply range is vmin..vmax volts; imax is
+// the most an output pin takes.
+const QUAD = [[1, 2, 3], [4, 5, 6], [9, 10, 8], [12, 13, 11]];
+const QUAD_4011 = [[1, 2, 3], [5, 6, 4], [8, 9, 10], [12, 13, 11]];
+const HEX = [[1, 2], [3, 4], [5, 6], [9, 8], [11, 10], [13, 12]];
+const HC = { vcc: 14, gnd: 7, rout: 25, vmin: 2, vmax: 6, imax: 0.025 };
+const NOT = a => 1 - a, NAND = (a, b) => 1 - (a & b);
+export const LOGIC = {
+  'ic-74HC00': { ...HC, gates: QUAD, fn: NAND },
+  'ic-74HC04': { ...HC, gates: HEX, fn: NOT },
+  'ic-74HC08': { ...HC, gates: QUAD, fn: (a, b) => a & b },
+  'ic-74HC14': { ...HC, gates: HEX, fn: NOT },
+  'ic-74HC32': { ...HC, gates: QUAD, fn: (a, b) => a | b },
+  'ic-74HC86': { ...HC, gates: QUAD, fn: (a, b) => a ^ b },
+  'ic-CD4011': { ...HC, gates: QUAD_4011, fn: NAND, rout: 400, vmin: 3, vmax: 18, imax: 0.01 },
+};
+const MAX_PASSES = 30;
 
 const isRail = y => y === 0 || y === 1 || y === 16 || y === 17;
 // Every hole of a terminal strip, or of a rail, is the same conductor.
@@ -128,7 +148,7 @@ export const BUTTON_LINKS = { always: [[0, 3], [1, 2]], pressed: [[0, 1]] };
 // `pressed`: ids of the pushbuttons that are held down.
 export function simulate(board, pressed = new Set()) {
   const nets = unionFind();
-  const elements = [], conductors = [], sources = [], faults = [];
+  const elements = [], conductors = [], sources = [], chips = [], faults = [];
   const fault = (kind, parts, title, text) => faults.push({ kind, parts, title, text });
 
   for (const part of board.parts) {
@@ -175,6 +195,8 @@ export function simulate(board, pressed = new Set()) {
       elements.push({ kind: 'diode', part, def, vf: 0.7, vz: 5.1, rs: DIODE_RS, strips });
     } else if (part.type === 'electrolytic') {
       elements.push({ kind: 'cap', part, def, strips });
+    } else if (part.type in LOGIC) {
+      chips.push({ part, logic: LOGIC[part.type], name: p.label || def.name, strips });
     }
   }
 
@@ -203,39 +225,78 @@ export function simulate(board, pressed = new Set()) {
   };
   for (const s of live) s.n = s.strips.map(node);
   for (const e of elements) e.n = e.strips.map(node);
+
+  // A chip input is floating when its net reaches no source, part or chip output pin.
+  const anchored = new Set([...live, ...elements].flatMap(x => x.strips.map(nets.find)));
+  for (const c of chips) {
+    const { vcc, gnd, gates } = c.logic;
+    for (const pin of [vcc, gnd, ...gates.map(gt => gt.at(-1))]) anchored.add(nets.find(c.strips[pin - 1]));
+  }
+  for (const c of chips) {
+    c.n = c.strips.map(node);
+    c.floating = c.logic.gates.flatMap(gt => gt.slice(0, -1)).filter(pin => !anchored.has(nets.find(c.strips[pin - 1])));
+  }
   const N = index.size;
 
   const diodes = elements.filter(e => e.kind === 'diode');
   diodes.forEach(d => { d.state = 'off'; });
   const ground = live[0]?.n[1] ?? 0;
-  let V = new Array(N).fill(0);
 
-  for (let iter = 0; iter < 60 && N; iter++) {
-    const A = Array.from({ length: N }, () => new Array(N).fill(0)), b = new Array(N).fill(0);
-    const g = (i, j, G) => { A[i][i] += G; A[j][j] += G; A[i][j] -= G; A[j][i] -= G; };
-    // Conductance G from i to j in series with an EMF that pushes current from j to i (i is the + end).
-    const emf = (i, j, G, E) => { g(i, j, G); b[i] += G * E; b[j] -= G * E; };
-    for (let i = 0; i < N; i++) A[i][i] += G_MIN;
-    A[ground][ground] += 1;
-    for (const s of live) emf(s.n[0], s.n[1], 1 / s.rint, s.volts);
-    for (const e of elements) {
-      const [a, k] = e.n;
-      if (e.kind === 'res') g(a, k, 1 / e.ohms);
-      else if (e.kind === 'cap') g(a, k, G_OFF);
-      else if (e.state === 'fwd') emf(a, k, 1 / e.rs, e.vf);
-      else if (e.state === 'rev') emf(k, a, 1 / e.rs, e.vz);
-      else g(a, k, G_OFF);
+  // Node voltages with the chip outputs in `drive` pulling their pins to VCC or GND.
+  const analog = drive => {
+    let V = new Array(N).fill(0);
+    for (let iter = 0; iter < 60 && N; iter++) {
+      const A = Array.from({ length: N }, () => new Array(N).fill(0)), b = new Array(N).fill(0);
+      const g = (i, j, G) => { A[i][i] += G; A[j][j] += G; A[i][j] -= G; A[j][i] -= G; };
+      // Conductance G from i to j in series with an EMF that pushes current from j to i (i is the + end).
+      const emf = (i, j, G, E) => { g(i, j, G); b[i] += G * E; b[j] -= G * E; };
+      for (let i = 0; i < N; i++) A[i][i] += G_MIN;
+      A[ground][ground] += 1;
+      for (const s of live) emf(s.n[0], s.n[1], 1 / s.rint, s.volts);
+      for (const e of elements) {
+        const [a, k] = e.n;
+        if (e.kind === 'res') g(a, k, 1 / e.ohms);
+        else if (e.kind === 'cap') g(a, k, G_OFF);
+        else if (e.state === 'fwd') emf(a, k, 1 / e.rs, e.vf);
+        else if (e.state === 'rev') emf(k, a, 1 / e.rs, e.vz);
+        else g(a, k, G_OFF);
+      }
+      for (const d of drive) g(d.out, d.rail, 1 / d.chip.logic.rout);
+      V = solve(A, b);
+      let changed = false;
+      for (const d of diodes) {
+        const vak = V[d.n[0]] - V[d.n[1]];
+        const next = d.state === 'fwd' ? (vak - d.vf >= 0 ? 'fwd' : 'off')
+          : d.state === 'rev' ? (-vak - d.vz >= 0 ? 'rev' : 'off')
+            : vak > d.vf ? 'fwd' : d.vz && -vak > d.vz ? 'rev' : 'off';
+        if (next !== d.state) { d.state = next; changed = true; }
+      }
+      if (!changed) break;
     }
-    V = solve(A, b);
-    let changed = false;
-    for (const d of diodes) {
-      const vak = V[d.n[0]] - V[d.n[1]];
-      const next = d.state === 'fwd' ? (vak - d.vf >= 0 ? 'fwd' : 'off')
-        : d.state === 'rev' ? (-vak - d.vz >= 0 ? 'rev' : 'off')
-          : vak > d.vf ? 'fwd' : d.vz && -vak > d.vz ? 'rev' : 'off';
-      if (next !== d.state) { d.state = next; changed = true; }
-    }
-    if (!changed) break;
+    return V;
+  };
+
+  const supplyOf = (c, V) => V[c.n[c.logic.vcc - 1]] - V[c.n[c.logic.gnd - 1]];
+  // Gate outputs of every powered chip, read from the input voltages in V.
+  // A floating input reads 0; any other reads 1 above half the supply.
+  const evaluate = V => chips.flatMap(c => {
+    const L = c.logic, lo = V[c.n[L.gnd - 1]], supply = supplyOf(c, V);
+    if (supply < L.vmin) return [];
+    return L.gates.map(gt => {
+      const ins = gt.slice(0, -1).map(pin => (c.floating.includes(pin) ? 0 : +((V[c.n[pin - 1]] - lo) / supply >= 0.5)));
+      const pin = gt.at(-1), level = L.fn(...ins);
+      return { chip: c, pin, level, out: c.n[pin - 1], rail: c.n[(level ? L.vcc : L.gnd) - 1] };
+    });
+  });
+  const sig = drive => drive.map(d => `${d.chip.part.id}:${d.pin}:${d.level}`).join();
+
+  // Re-solve until no gate output changes. Without chips this is a single solve.
+  let drive = [], V = analog(drive), settled = false;
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
+    const next = evaluate(V);
+    if (sig(next) === sig(drive)) { settled = true; break; }
+    drive = next;
+    V = analog(drive);
   }
 
   const vmax = Math.max(...sources.map(s => s.volts));
@@ -286,6 +347,39 @@ export function simulate(board, pressed = new Set()) {
       fault('hot', [e.part.id], `${e.def.name} con demasiada corriente`,
         `Le pasan ${fmt((vak - e.vf) / e.rs, 'A')} y aguanta 1 A. Añade una resistencia en serie.`);
     }
+  }
+
+  for (const c of chips) {
+    const L = c.logic, supply = supplyOf(c, V), ids = [c.part.id];
+    if (supply < -0.5) {
+      fault('power', ids, `${c.name} alimentado al revés`,
+        `El pin ${L.gnd} (GND) está ${fmt(supply, 'V')} por encima del pin ${L.vcc} (VCC): en la realidad se quemaría. Pasa el pin ${L.vcc} al + y el pin ${L.gnd} al −.`);
+    } else if (supply < L.vmin) {
+      fault('power', ids, `${c.name} sin alimentación`,
+        `Entre el pin ${L.vcc} (VCC) y el pin ${L.gnd} (GND) hay ${fmt(supply, 'V')} y necesita al menos ${L.vmin} V. Conecta el pin ${L.vcc} al + y el pin ${L.gnd} al −.`);
+    } else {
+      if (supply > L.vmax) {
+        fault('hot', ids, `${c.name} con demasiado voltaje`,
+          `Recibe ${fmt(supply, 'V')} y aguanta hasta ${L.vmax} V: en la realidad se quemaría. Aliméntalo con 5 V, por ejemplo con un regulador 7805.`);
+      }
+      if (c.floating.length) {
+        const pins = c.floating.length === 1 ? `El pin ${c.floating[0]} no está conectado`
+          : `Los pines ${c.floating.slice(0, -1).join(', ')} y ${c.floating.at(-1)} no están conectados`;
+        fault('float', ids, `${c.name} con entradas al aire`,
+          `${pins} a nada que fije su nivel, así que en la realidad leen 0 o 1 al azar. La prueba los toma como 0. Si no los usas, llévalos al −; si vienen de un pulsador, pon una resistencia de 10k al −.`);
+      }
+    }
+  }
+  for (const d of drive) {
+    const amps = Math.abs(V[d.out] - V[d.rail]) / d.chip.logic.rout;
+    if (amps > d.chip.logic.imax) {
+      fault('hot', [d.chip.part.id], `Salida de ${d.chip.name} con demasiada corriente`,
+        `El pin ${d.pin} da ${d.level ? '1' : '0'} y le pasan ${fmt(amps, 'A')}; aguanta unos ${d.chip.logic.imax * 1e3} mA. Revisa que no esté unido directo al + o al −, a otra salida, o a un LED sin resistencia.`);
+    }
+  }
+  if (!settled) {
+    fault('oscillate', chips.map(c => c.part.id), 'Las compuertas no se estabilizan',
+      'Alguna salida vuelve a su propia entrada y cambia sin parar, como un oscilador. La prueba solo calcula estados fijos, así que los LED que dependen de ella pueden no ser reales.');
   }
 
   // Shorts first, then the rest in board order.

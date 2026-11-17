@@ -104,3 +104,55 @@ test('pressing a button straight across the battery is a short', () => {
   assert.match(r.faults[0].text, /2 cables y un pulsador/);
   assert.match(r.faults[0].text, /Suelta el pulsador/);
 });
+
+// A 14-pin chip with pin 1 at f<col>: pins 1–7 run right along row f, 8–14 back along row e.
+const chip = (type, col) => part(type, [
+  ...Array.from({ length: 7 }, (_, i) => `f${col + i}`),
+  ...Array.from({ length: 7 }, (_, i) => `e${col + 6 - i}`),
+]);
+// 5 V on the top rails, chip at column 5: VCC (pin 14, e5) to +, GND (pin 7, f11) to −.
+const powered = (volts, type, ...rest) => {
+  const ic = chip(type, 5);
+  return { ic, b: board(part('cell', ['T+1', 'T-1'], { value: volts }), ic,
+    part('wire', ['a5', 'T+4']), part('wire', ['j11', 'T-11']), ...rest) };
+};
+
+test('an AND gate drives an LED from its output', () => {
+  const led = part('led', ['b14', 'T-14']);
+  // Pin 1 (f5) high; pin 2 (f6) high or low; output pin 3 (f7) to a resistor and the LED.
+  const run = pin2 => simulate(powered('5', 'ic-74HC08', part('wire', ['j5', 'T+3']), part('wire', ['j6', pin2]),
+    part('resistor', ['h7', 'a14'], { value: '330' }), led).b);
+  const on = run('T+2');
+  assert.ok(on.lit[led.id] > 0.5, '1 AND 1 lights the LED');
+  assert.deepEqual(kinds(on), ['float'], 'only the unused gates are reported');
+  assert.equal(run('T-2').lit[led.id], undefined, '1 AND 0 leaves it dark');
+});
+
+test('an AND gate into a NOT gate, both chips simulated together', () => {
+  const led = part('led', ['b28', 'T-28']);
+  // 74HC08 at 5..11 with 1A, 1B low; 74HC04 at 15..21 reads 1Y (f7) on 1A (f15), 1Y (f16) lights the LED.
+  const inv = chip('ic-74HC04', 15);
+  const r = simulate(powered('5', 'ic-74HC08', inv, part('wire', ['a15', 'T+15']), part('wire', ['j21', 'T-21']),
+    part('wire', ['j5', 'T-3']), part('wire', ['j6', 'T-2']), part('wire', ['h7', 'h15']),
+    part('resistor', ['h16', 'a28'], { value: '330' }), led).b);
+  assert.ok(r.lit[led.id] > 0.5, 'NOT (0 AND 0) is 1');
+});
+
+test('chip power faults: missing, reversed and over voltage', () => {
+  const lone = chip('ic-74HC00', 5);
+  assert.deepEqual(kinds(simulate(board(part('cell', ['T+1', 'T-1'], { value: '5' }), lone))), ['power']);
+  const rev = simulate(board(part('cell', ['T+1', 'T-1'], { value: '5' }), chip('ic-74HC00', 5),
+    part('wire', ['a5', 'T-4']), part('wire', ['j11', 'T+11'])));
+  assert.match(rev.faults.find(f => f.kind === 'power').title, /al revés/);
+  const hot = simulate(powered('9', 'ic-74HC00').b);
+  assert.ok(hot.faults.some(f => f.kind === 'hot' && /voltaje/.test(f.title)));
+});
+
+test('an output tied to a rail and a gate feeding itself are reported', () => {
+  // 74HC04 gate 1: input low, so the output (pin 2, f6) is high; a wire pulls it to −.
+  const shorted = simulate(powered('5', 'ic-74HC04', part('wire', ['j5', 'T-3']), part('wire', ['j6', 'T-2'])).b);
+  assert.ok(shorted.faults.some(f => f.kind === 'hot' && /pin 2/.test(f.text)));
+  // Output pin 2 wired back to input pin 1 never settles.
+  const ring = simulate(powered('5', 'ic-74HC04', part('wire', ['g5', 'g6'])).b);
+  assert.ok(kinds(ring).includes('oscillate'));
+});
