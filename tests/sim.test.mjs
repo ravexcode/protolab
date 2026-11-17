@@ -156,3 +156,17 @@ test('an output tied to a rail and a gate feeding itself are reported', () => {
   const ring = simulate(powered('5', 'ic-74HC04', part('wire', ['g5', 'g6'])).b);
   assert.ok(kinds(ring).includes('oscillate'));
 });
+
+test('a 74LS21 input needs a small pull-down: TTL inputs push current out', () => {
+  const led = part('led', ['b20', 'T-20']);
+  // Gate 1: pins 1, 2, 4 tied to +; pin 5 (f9) pulled to − through `pull`; output pin 6 (f10) drives the LED.
+  const run = pull => simulate(powered('5', 'ic-74LS21', part('wire', ['j5', 'T+3']), part('wire', ['j6', 'T+2']),
+    part('wire', ['j8', 'T+8']), part('resistor', ['j9', 'T-9'], { value: pull }),
+    part('resistor', ['h10', 'a20'], { value: '330' }), led).b);
+  const weak = run('10k');
+  assert.ok(weak.lit[led.id] > 0, '10k cannot pull the input low, so the AND reads 1');
+  const strong = run('1k');
+  assert.equal(strong.lit[led.id], undefined, '1k pulls it low');
+  assert.ok(!strong.faults.some(f => f.kind === 'level'));
+  assert.match(strong.faults.find(f => f.kind === 'float').text, /leen 1/);
+});

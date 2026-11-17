@@ -16,23 +16,33 @@ const SHORTS = new Set(['wire', 'fuse', 'inductor']);
 const LOADS = { ldr: 10e3, thermistor: 10e3, motor: 20, buzzer: 200, speaker: 8 };
 
 // Logic-gate chips. Each gate lists its input pins and then its output pin (pin 1 is
-// part.pins[0]). An output drives its pin through `rout` ohms to the chip's VCC or GND
-// pin, so it sources and sinks real current. Supply range is vmin..vmax volts; imax is
-// the most an output pin takes.
+// part.pins[0]). Supply range is vmin..vmax volts; imax is the most an output pin takes.
+//
+// CMOS (74HC, CD4000): an output drives its pin through `rout` ohms to the chip's VCC or
+// GND pin. An input draws no current and reads 1 above half the supply; a floating
+// input is unpredictable.
+// TTL (74LS): a high output is `vhigh` volts above GND through `routHigh` ohms, a low one
+// is `rout` ohms to GND. Each input pushes current out, like `rin` ohms to VCC, so it
+// reads 1 when left floating and needs a small resistor (1k or less) to read 0.
 const QUAD = [[1, 2, 3], [4, 5, 6], [9, 10, 8], [12, 13, 11]];
 const QUAD_4011 = [[1, 2, 3], [5, 6, 4], [8, 9, 10], [12, 13, 11]];
 const HEX = [[1, 2], [3, 4], [5, 6], [9, 8], [11, 10], [13, 12]];
-const HC = { vcc: 14, gnd: 7, rout: 25, vmin: 2, vmax: 6, imax: 0.025 };
-const NOT = a => 1 - a, NAND = (a, b) => 1 - (a & b);
+const DUAL4 = [[1, 2, 4, 5, 6], [9, 10, 12, 13, 8]];   // pins 3 and 11 are not connected
+const HC = { ttl: false, vcc: 14, gnd: 7, rout: 25, vmin: 2, vmax: 6, imax: 0.025 };
+const LS = { ttl: true, vcc: 14, gnd: 7, rout: 15, routHigh: 130, vhigh: 3.4, rin: 12e3, vmin: 4.5, vmax: 7, imax: 0.02 };
+const TTL_VIL = 0.8, TTL_VTH = 1.4, TTL_VIH = 2;
+const NOT = a => 1 - a, NAND = (a, b) => 1 - (a & b), AND = (...ins) => +ins.every(Boolean);
 export const LOGIC = {
   'ic-74HC00': { ...HC, gates: QUAD, fn: NAND },
   'ic-74HC04': { ...HC, gates: HEX, fn: NOT },
-  'ic-74HC08': { ...HC, gates: QUAD, fn: (a, b) => a & b },
+  'ic-74HC08': { ...HC, gates: QUAD, fn: AND },
   'ic-74HC14': { ...HC, gates: HEX, fn: NOT },
   'ic-74HC32': { ...HC, gates: QUAD, fn: (a, b) => a | b },
   'ic-74HC86': { ...HC, gates: QUAD, fn: (a, b) => a ^ b },
+  'ic-74LS21': { ...LS, gates: DUAL4, fn: AND },
   'ic-CD4011': { ...HC, gates: QUAD_4011, fn: NAND, rout: 400, vmin: 3, vmax: 18, imax: 0.01 },
 };
+const inputsOf = L => L.gates.flatMap(gt => gt.slice(0, -1));
 const MAX_PASSES = 30;
 
 const isRail = y => y === 0 || y === 1 || y === 16 || y === 17;
@@ -234,7 +244,7 @@ export function simulate(board, pressed = new Set()) {
   }
   for (const c of chips) {
     c.n = c.strips.map(node);
-    c.floating = c.logic.gates.flatMap(gt => gt.slice(0, -1)).filter(pin => !anchored.has(nets.find(c.strips[pin - 1])));
+    c.floating = inputsOf(c.logic).filter(pin => !anchored.has(nets.find(c.strips[pin - 1])));
   }
   const N = index.size;
 
@@ -261,7 +271,13 @@ export function simulate(board, pressed = new Set()) {
         else if (e.state === 'rev') emf(k, a, 1 / e.rs, e.vz);
         else g(a, k, G_OFF);
       }
-      for (const d of drive) g(d.out, d.rail, 1 / d.chip.logic.rout);
+      for (const c of chips) {
+        if (c.logic.ttl) for (const pin of inputsOf(c.logic)) g(c.n[pin - 1], c.n[c.logic.vcc - 1], 1 / c.logic.rin);
+      }
+      for (const d of drive) {
+        if (d.e) emf(d.out, d.rail, 1 / d.r, d.e);
+        else g(d.out, d.rail, 1 / d.r);
+      }
       V = solve(A, b);
       let changed = false;
       for (const d of diodes) {
@@ -277,15 +293,23 @@ export function simulate(board, pressed = new Set()) {
   };
 
   const supplyOf = (c, V) => V[c.n[c.logic.vcc - 1]] - V[c.n[c.logic.gnd - 1]];
+  // Input pin voltage above the chip's GND, and whether it reads 1. A floating CMOS
+  // input reads 0; a floating TTL input sits near VCC through `rin` and reads 1.
+  const inputOf = (c, pin, V) => {
+    const L = c.logic, v = V[c.n[pin - 1]] - V[c.n[L.gnd - 1]];
+    if (L.ttl) return { v, level: +(v >= TTL_VTH), doubtful: v > TTL_VIL && v < TTL_VIH };
+    const f = v / supplyOf(c, V);
+    return { v, level: c.floating.includes(pin) ? 0 : +(f >= 0.5), doubtful: !c.floating.includes(pin) && f > 0.3 && f < 0.7 };
+  };
   // Gate outputs of every powered chip, read from the input voltages in V.
-  // A floating input reads 0; any other reads 1 above half the supply.
   const evaluate = V => chips.flatMap(c => {
-    const L = c.logic, lo = V[c.n[L.gnd - 1]], supply = supplyOf(c, V);
-    if (supply < L.vmin) return [];
+    const L = c.logic;
+    if (supplyOf(c, V) < L.vmin) return [];
     return L.gates.map(gt => {
-      const ins = gt.slice(0, -1).map(pin => (c.floating.includes(pin) ? 0 : +((V[c.n[pin - 1]] - lo) / supply >= 0.5)));
-      const pin = gt.at(-1), level = L.fn(...ins);
-      return { chip: c, pin, level, out: c.n[pin - 1], rail: c.n[(level ? L.vcc : L.gnd) - 1] };
+      const pin = gt.at(-1), level = L.fn(...gt.slice(0, -1).map(p => inputOf(c, p, V).level));
+      const out = c.n[pin - 1], gnd = c.n[L.gnd - 1];
+      return L.ttl ? { chip: c, pin, level, out, rail: gnd, r: level ? L.routHigh : L.rout, e: level ? L.vhigh : 0 }
+        : { chip: c, pin, level, out, rail: c.n[(level ? L.vcc : L.gnd) - 1], r: L.rout, e: 0 };
     });
   });
   const sig = drive => drive.map(d => `${d.chip.part.id}:${d.pin}:${d.level}`).join();
@@ -362,16 +386,25 @@ export function simulate(board, pressed = new Set()) {
         fault('hot', ids, `${c.name} con demasiado voltaje`,
           `Recibe ${fmt(supply, 'V')} y aguanta hasta ${L.vmax} V: en la realidad se quemaría. Aliméntalo con 5 V, por ejemplo con un regulador 7805.`);
       }
+      const list = pins => (pins.length === 1 ? pins[0] : `${pins.slice(0, -1).join(', ')} y ${pins.at(-1)}`);
       if (c.floating.length) {
-        const pins = c.floating.length === 1 ? `El pin ${c.floating[0]} no está conectado`
-          : `Los pines ${c.floating.slice(0, -1).join(', ')} y ${c.floating.at(-1)} no están conectados`;
+        const pins = `${c.floating.length === 1 ? 'El pin' : 'Los pines'} ${list(c.floating)}`;
+        const reads = L.ttl ? 'En un TTL leen 1, pero captan ruido y pueden saltar a 0.'
+          : 'En la realidad leen 0 o 1 al azar; la prueba los toma como 0.';
         fault('float', ids, `${c.name} con entradas al aire`,
-          `${pins} a nada que fije su nivel, así que en la realidad leen 0 o 1 al azar. La prueba los toma como 0. Si no los usas, llévalos al −; si vienen de un pulsador, pon una resistencia de 10k al −.`);
+          `${pins} no ${c.floating.length === 1 ? 'está conectado' : 'están conectados'} a nada que fije su nivel. ${reads} Si no los usas, llévalos al + o al −; si vienen de un pulsador, pon una resistencia al − (${L.ttl ? '1k o menos' : '10k'}).`);
+      }
+      const doubtful = inputsOf(L).filter(pin => inputOf(c, pin, V).doubtful);
+      if (doubtful.length) {
+        const at = doubtful.map(pin => `pin ${pin} a ${fmt(inputOf(c, pin, V).v, 'V')}`);
+        fault('level', ids, `${c.name} con entradas a medio camino`,
+          L.ttl ? `Tiene ${list(at)}. Un TTL lee 0 solo debajo de 0.8 V y 1 encima de 2 V; en medio puede leer cualquiera. Si la entrada viene de un pulsador con resistencia al −, bájala a 1k o menos: las entradas TTL empujan corriente hacia afuera.`
+            : `Tiene ${list(at)}. Un CMOS lee 0 debajo del 30 % de su alimentación y 1 encima del 70 %; en medio puede leer cualquiera. Si la señal viene de un chip 74LS, usa la versión 74HCT o 74LS de este chip.`);
       }
     }
   }
   for (const d of drive) {
-    const amps = Math.abs(V[d.out] - V[d.rail]) / d.chip.logic.rout;
+    const amps = Math.abs(V[d.out] - V[d.rail] - d.e) / d.r;
     if (amps > d.chip.logic.imax) {
       fault('hot', [d.chip.part.id], `Salida de ${d.chip.name} con demasiada corriente`,
         `El pin ${d.pin} da ${d.level ? '1' : '0'} y le pasan ${fmt(amps, 'A')}; aguanta unos ${d.chip.logic.imax * 1e3} mA. Revisa que no esté unido directo al + o al −, a otra salida, o a un LED sin resistencia.`);

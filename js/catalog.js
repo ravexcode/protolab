@@ -25,7 +25,7 @@ const ICS = [
   ['NE555', 'Temporizador', 4], ['LM358', 'Op-amp doble', 4], ['LM741', 'Op-amp', 4],
   ['LM386', 'Amplificador de audio', 4], ['ATtiny85', 'Microcontrolador', 4], ['24LC256', 'EEPROM I2C', 4],
   ['PC817', 'Optoacoplador', 2], ['74HC00', '4× NAND', 7], ['74HC04', '6× NOT', 7], ['74HC08', '4× AND', 7],
-  ['74HC32', '4× OR', 7], ['74HC86', '4× XOR', 7], ['74HC14', '6× Schmitt', 7], ['74HC74', '2× Flip-flop D', 7],
+  ['74HC32', '4× OR', 7], ['74LS21', '2× AND de 4 entradas (TTL)', 7], ['74HC86', '4× XOR', 7], ['74HC14', '6× Schmitt', 7], ['74HC74', '2× Flip-flop D', 7],
   ['LM324', 'Op-amp cuádruple', 7], ['CD4011', '4× NAND CMOS', 7], ['74HC595', 'Registro de desplazamiento', 8],
   ['74HC165', 'Registro paralelo-serie', 8], ['74HC138', 'Decodificador 3:8', 8], ['CD4017', 'Contador de década', 8],
   ['CD4051', 'Multiplexor 8:1', 8], ['L293D', 'Puente H', 8], ['ULN2003', 'Driver Darlington', 8],
